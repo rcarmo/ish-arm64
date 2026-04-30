@@ -44,19 +44,20 @@ The first tranche centralizes FD-path lookup, stat timestamp fields, host random
 - Fixed lazy `MAP_NORESERVE` reservation permissions so later `mprotect()` calls update reservation metadata before demand faults materialize pages.
 - Re-enabled valid high ARM64 mmap hints within the 48-bit guest address space, which is required by modern JS runtimes that derive heap/cage pointers from returned mappings.
 - Fixed pair-exclusive `STXP/STLXP` state handling so the standalone LDXP/STLXP atomic repro now passes.
-- Added first-pass `CASP`/128-bit compare-exchange decode and helper plumbing; the standalone CAS128 repro is still a known blocker.
+- Added `CASP`/128-bit compare-exchange decode/helper plumbing; the standalone CAS128 repro now passes.
 - Added small atomic repro sources under `tests/arm64/atomics/` for LDXP/STLXP and CAS128.
+- Stopped advertising ARM64 LSE `ATOMICS` in `AT_HWCAP` until the LSE helper set is fully coverage-clean; runtimes can fall back to LL/SC paths.
 
 ## Current coverage status
 
-Latest staged runtime report: **16 / 20 passing**.
+Latest staged runtime reports are **15-16 / 20 passing** depending on whether the Node/npm run hits the safety valve after Bun failures. C and Go are consistently green; Bun remains the main red area.
 
 | Area | Status | Notes |
 |---|---:|---|
 | Base shell / apk / tmp I/O | Passing | Basic guest execution and filesystem operations are stable. |
 | C toolchain | Passing | `gcc` can compile and execute a simple program. |
 | Go | Passing | `go version`, `go env`, `go tool compile`, `go run`, `go build`, and `go test` pass. |
-| Node/npm | Passing | `node -e`, `npm --version`, and `npm run` pass after mmap/reservation and `pwritev` fixes. |
+| Node/npm | Mostly passing | `node -e`, `npm --version`, and direct `npm run` pass after mmap/reservation and `pwritev` fixes; one full-suite run still saw a post-Bun safety-valve timeout. |
 | Bun | Failing | Bun starts and reports its version, but install/run/test/build still hit allocator/runtime faults. |
 
 ## Bun install failure snapshot
@@ -65,7 +66,7 @@ The remaining red path is Bun. This screenshot shows the current failure mode wh
 
 ![Bun install failing inside the ARM64 iSH guest](docs/images/bun-install-failure.png)
 
-The most common current signatures are faults in Bun/JSC allocation paths around `0x4899afc`, `0x4899b00`, and sometimes `0x489a190`, with corrupted high free-list pointers. The next debugging target is finishing `CASP`/128-bit atomic correctness and then continuing into Bun allocator/TLS/threading behavior.
+The most common current signatures are faults in Bun/JSC allocation paths around `0x4899afc`, `0x4899b00`, and sometimes `0x489a190`, with corrupted high free-list pointers. CASP/128-bit atomic coverage is now green, so the next debugging target is the remaining Bun allocator/TLS/threading behavior and LSE helper coverage.
 
 ## Quick start
 

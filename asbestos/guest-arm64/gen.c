@@ -1982,10 +1982,12 @@ static int gen_ldst(struct gen_state *state, uint32_t insn) {
 
     // Atomic compare-and-swap (CAS/CASA/CASL/CASAL)
     // Encoding: size:001000:1:A:1:Rs:R:11111:Rn:Rt
-    // A=acquire (bit23), R=release (bit15)
-    if ((insn & 0x3f200c00) == 0x08200c00) {
+    // bit23 is fixed 1 for single-register CAS; A=acquire is bit22,
+    // R=release is bit15. Pair exclusives (LDXP/STXP) have the same broad
+    // opcode mask but bit23=0 and size=2/3, so keep this predicate narrow.
+    if ((insn & 0x3f200c00) == 0x08200c00 && ((insn >> 23) & 1) == 1) {
         uint32_t size = (insn >> 30) & 0x3;
-        uint32_t A = (insn >> 23) & 1;    // acquire
+        uint32_t A = (insn >> 22) & 1;    // acquire
         uint32_t R = (insn >> 15) & 1;    // release
         uint32_t rs = (insn >> 16) & 0x1f;  // expected value (and result)
         uint32_t rn = (insn >> 5) & 0x1f;

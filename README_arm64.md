@@ -292,12 +292,12 @@ to debug, not as cases to skip.
 
 Current Linux-host status from this pass:
 
-- Latest staged run: **16 / 20 passing**.
+- Latest staged runs: **15-16 / 20 passing** (Node/npm can still safety-valve after Bun failures in full-suite runs).
 - C coverage is green: `gcc --version`, compile, and execute all pass.
 - Go coverage is green: `go version`, `go env`, `go tool compile`, `go run`,
   `go build` + execute, and `go test` all pass.
-- Node/npm coverage is green: `node --version`, `node -e`, `npm --version`, and
-  `npm run` all pass without the previous noisy `pwritev` stubs.
+- Node/npm coverage is mostly green: `node --version`, `node -e`, `npm --version`, and
+  direct `npm run` pass without the previous noisy `pwritev` stubs; one full-suite run still hit a post-Bun safety-valve timeout.
 - Fixed lazy `MAP_NORESERVE` reservation permissions: `mprotect()` now updates
   reservation metadata, so later demand faults materialize pages with the new
   permissions. This fixed the Node/V8 `0xb00c0000` write fault.
@@ -307,8 +307,8 @@ Current Linux-host status from this pass:
   allocator metadata.
 - Fixed the pair-exclusive `STXP/STLXP` gadget clobbering `_pc` (`x28`) while
   loading the expected high word. The standalone `tests/arm64/atomics/ldxp-stlxp.c` now passes.
-- Added first-pass `CASP` decoding/helper plumbing for 128-bit compare-exchange;
-  the standalone `tests/arm64/atomics/cas128.c` is still red and remains a target.
+- Fixed `CAS`/`CASP` decode separation so pair exclusives are no longer misdecoded as single-register CAS. The standalone `tests/arm64/atomics/cas128.c` now passes.
+- Stopped advertising LSE `ATOMICS` in `AT_HWCAP` until the LSE helper set is fully coverage-clean; runtimes can fall back to LL/SC paths.
 - Added ARM64 `preadv`/`pwritev` implementations and wired syscalls 69/70 to
   remove Node/npm fallback noise.
 - Reclassified the earlier `HIGHBITS pc=0xefec3698` noise as an invalid
@@ -328,8 +328,8 @@ Current Linux-host status from this pass:
 Immediate plan:
 
 1. keep the Makefile target as the single command for coverage regressions;
-2. finish `CASP`/128-bit atomic correctness (`tests/arm64/atomics/cas128.c` must pass);
-3. continue tracing the Bun allocator corruption through atomics/TLS/threading;
+2. continue tracing the Bun allocator corruption through atomics/TLS/threading;
+3. finish LSE helper validation before re-advertising `HWCAP_ATOMICS`;
 4. only expand coverage further after Bun install/run/test/build are green and
    stderr-clean.
 
