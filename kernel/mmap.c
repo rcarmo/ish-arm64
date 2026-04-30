@@ -81,6 +81,15 @@ static addr_t do_mmap(addr_t addr, uint64_t len, dword_t prot, dword_t flags, fd
             addr = 0;
     }
     if (addr == 0) {
+#ifdef GUEST_ARM64
+        // Large no-reserve arenas (Bun/JSC heap cages, V8 code ranges, etc.)
+        // should live in the 48-bit high address space instead of consuming
+        // the scarce low 4GB mmap window. They are lazy reservations, so this
+        // costs page-table metadata only as pages are touched.
+        if ((flags & MMAP_NORESERVE) && pages >= 0x10000)
+            page = pt_find_hole_high(current->mem, pages);
+        else
+#endif
         page = pt_find_hole(current->mem, pages);
         if (page == BAD_PAGE)
             return _ENOMEM;
@@ -100,6 +109,8 @@ static addr_t do_mmap(addr_t addr, uint64_t len, dword_t prot, dword_t flags, fd
             page_t aligned = (page / align_pages) * align_pages;
             if (aligned >= MMAP_HOLE_END && pt_is_hole(current->mem, aligned, pages))
                 page = aligned;
+            if (!pt_is_hole(current->mem, page, pages))
+                return _ENOMEM;
             if ((err = pt_map_lazy(current->mem, page, pages, prot)) < 0)
                 return err;
             return page << PAGE_BITS;

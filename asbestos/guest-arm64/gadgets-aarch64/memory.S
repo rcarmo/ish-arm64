@@ -2587,13 +2587,16 @@ stxr_segfault:
     cmp x26, #3
     b.eq ldxp_c_64
     bl NAME(c_ldp32)
+    mov w19, w0                  // save result
+    ldr w20, [sp]                // val1 (32-bit LDXP zero-extends)
+    ldr w21, [sp, #8]            // val2 (32-bit LDXP zero-extends)
     b ldxp_c_done
 ldxp_c_64:
     bl NAME(c_ldp64)
-ldxp_c_done:
     mov w19, w0                  // save result
-    ldr x20, [sp]               // val1
-    ldr x21, [sp, #8]           // val2
+    ldr x20, [sp]                // val1
+    ldr x21, [sp, #8]            // val2
+ldxp_c_done:
     add sp, sp, #16
     restore_c
     mov _addr, x24               // restore _addr

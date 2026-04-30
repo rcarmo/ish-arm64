@@ -2379,7 +2379,7 @@ static int gen_ldst(struct gen_state *state, uint32_t insn) {
 
             bool is_pre = (mode == 3);
             bool is_post = (mode == 1);
-            bool is_offset = (mode == 2);
+            bool is_offset = (mode == 2 || mode == 0); // 000=LDNP/STNP, 010=LDP/STP signed offset
 
             if (!is_pre && !is_post && !is_offset) {
                 gen_interrupt(state, INT_UNDEFINED);
@@ -2435,7 +2435,7 @@ static int gen_ldst(struct gen_state *state, uint32_t insn) {
 
         bool is_pre = (mode == 3);
         bool is_post = (mode == 1);
-        bool is_offset = (mode == 2);
+        bool is_offset = (mode == 2 || mode == 0); // 000=LDNP/STNP, 010=LDP/STP signed offset
 
         if (!is_pre && !is_post && !is_offset) {
             // Unsupported mode

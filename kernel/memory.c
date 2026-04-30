@@ -372,7 +372,7 @@ static page_t pt_find_hole_from(struct mem *mem, pages_t size, page_t start) {
 
 // Scan upward in the high address space (above 4GB) for large allocations
 // that don't fit in the low region. Used for Wasm guard regions etc.
-static page_t pt_find_hole_high(struct mem *mem, pages_t size) {
+page_t pt_find_hole_high(struct mem *mem, pages_t size) {
     // Search from 0x100000 (4GB) upward to USER_ADDR_MAX_PAGE
     // Use a simple strategy: scan upward looking for unallocated L0 subtrees
     page_t page = 0x100000; // Start at 4GB

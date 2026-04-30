@@ -372,7 +372,7 @@ static int elf_exec(struct fd *fd, const char *file, struct exec_args argv, stru
 #endif
         {AX_SYSINFO_EHDR, current->mm->vdso},
 #if defined(GUEST_ARM64)
-        {AX_HWCAP, 0x01f}, // FP|ASIMD|EVTSTRM|AES|PMULL. Do not advertise LSE ATOMICS until all LSE helpers are coverage-clean.
+        {AX_HWCAP, 0x003}, // FP|ASIMD only. Keep optional crypto/LSE features hidden until helper coverage is clean.
 #else
         {AX_HWCAP, 0x00000000}, // suck that
 #endif

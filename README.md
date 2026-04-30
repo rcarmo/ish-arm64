@@ -43,21 +43,22 @@ The first tranche centralizes FD-path lookup, stat timestamp fields, host random
 - Implemented ARM64 `preadv`/`pwritev` syscall wiring, removing noisy Node/npm fallback stubs.
 - Fixed lazy `MAP_NORESERVE` reservation permissions so later `mprotect()` calls update reservation metadata before demand faults materialize pages.
 - Re-enabled valid high ARM64 mmap hints within the 48-bit guest address space, which is required by modern JS runtimes that derive heap/cage pointers from returned mappings.
-- Fixed pair-exclusive `STXP/STLXP` state handling so the standalone LDXP/STLXP atomic repro now passes.
+- Prefer the high 48-bit address space for large anonymous `MAP_NORESERVE` arenas so Bun/JSC/V8 do not exhaust the low 4GB mmap window.
+- Fixed pair-exclusive `STXP/STLXP` state handling so the standalone 64-bit and 32-bit LDXP/STLXP atomic repros now pass.
 - Added `CASP`/128-bit compare-exchange decode/helper plumbing; the standalone CAS128 repro now passes.
 - Added small atomic repro sources under `tests/arm64/atomics/` for LDXP/STLXP and CAS128.
-- Stopped advertising ARM64 LSE `ATOMICS` in `AT_HWCAP` until the LSE helper set is fully coverage-clean; runtimes can fall back to LL/SC paths.
+- Stopped advertising optional ARM64 crypto/LSE features in `AT_HWCAP` until those helper sets are fully coverage-clean; runtimes can fall back to baseline FP/ASIMD paths.
 
 ## Current coverage status
 
-Latest staged runtime reports are **15-16 / 20 passing** depending on whether the Node/npm run hits the safety valve after Bun failures. C and Go are consistently green; Bun remains the main red area.
+Latest staged runtime report: **16 / 20 passing**. C, Go, and Node/npm are green; Bun remains the red area.
 
 | Area | Status | Notes |
 |---|---:|---|
 | Base shell / apk / tmp I/O | Passing | Basic guest execution and filesystem operations are stable. |
 | C toolchain | Passing | `gcc` can compile and execute a simple program. |
 | Go | Passing | `go version`, `go env`, `go tool compile`, `go run`, `go build`, and `go test` pass. |
-| Node/npm | Mostly passing | `node -e`, `npm --version`, and direct `npm run` pass after mmap/reservation and `pwritev` fixes; one full-suite run still saw a post-Bun safety-valve timeout. |
+| Node/npm | Passing | `node -e`, `npm --version`, and `npm run` pass after mmap/reservation and `pwritev` fixes. |
 | Bun | Failing | Bun starts and reports its version, but install/run/test/build still hit allocator/runtime faults. |
 
 ## Bun install failure snapshot
@@ -66,7 +67,7 @@ The remaining red path is Bun. This screenshot shows the current failure mode wh
 
 ![Bun install failing inside the ARM64 iSH guest](docs/images/bun-install-failure.png)
 
-The most common current signatures are faults in Bun/JSC allocation paths around `0x4899afc`, `0x4899b00`, and sometimes `0x489a190`, with corrupted high free-list pointers. CASP/128-bit atomic coverage is now green, so the next debugging target is the remaining Bun allocator/TLS/threading behavior and LSE helper coverage.
+The most common current signatures are faults in Bun/JSC allocation paths around `0x4899afc`, `0x4899b00`, and sometimes `0x489a190`, with corrupted high free-list pointers. CASP/128-bit atomic coverage is now green and large high arenas are available, so the next debugging target is the remaining Bun allocator/TLS/threading behavior and optional crypto/LSE helper coverage.
 
 ## Quick start
 

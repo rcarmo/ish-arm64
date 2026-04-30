@@ -292,12 +292,12 @@ to debug, not as cases to skip.
 
 Current Linux-host status from this pass:
 
-- Latest staged runs: **15-16 / 20 passing** (Node/npm can still safety-valve after Bun failures in full-suite runs).
+- Latest staged run: **16 / 20 passing**.
 - C coverage is green: `gcc --version`, compile, and execute all pass.
 - Go coverage is green: `go version`, `go env`, `go tool compile`, `go run`,
   `go build` + execute, and `go test` all pass.
-- Node/npm coverage is mostly green: `node --version`, `node -e`, `npm --version`, and
-  direct `npm run` pass without the previous noisy `pwritev` stubs; one full-suite run still hit a post-Bun safety-valve timeout.
+- Node/npm coverage is green: `node --version`, `node -e`, `npm --version`, and
+  `npm run` pass without the previous noisy `pwritev` stubs.
 - Fixed lazy `MAP_NORESERVE` reservation permissions: `mprotect()` now updates
   reservation metadata, so later demand faults materialize pages with the new
   permissions. This fixed the Node/V8 `0xb00c0000` write fault.
@@ -305,10 +305,12 @@ Current Linux-host status from this pass:
   address space. Bun/JSC heap/cage code stores pointers derived from returned
   high mappings; silently relocating these reservations into low memory corrupts
   allocator metadata.
+- Large anonymous `MAP_NORESERVE` arenas are now placed in the high 48-bit address space first, instead of burning the low 4GB mmap window. This removes Bun/JSC startup `ENOMEM` on repeated 1-8GB arena probes.
 - Fixed the pair-exclusive `STXP/STLXP` gadget clobbering `_pc` (`x28`) while
-  loading the expected high word. The standalone `tests/arm64/atomics/ldxp-stlxp.c` now passes.
+  loading the expected high word. The standalone `tests/arm64/atomics/ldxp-stlxp.c` now covers both 64-bit and 32-bit pair exclusives and passes.
 - Fixed `CAS`/`CASP` decode separation so pair exclusives are no longer misdecoded as single-register CAS. The standalone `tests/arm64/atomics/cas128.c` now passes.
-- Stopped advertising LSE `ATOMICS` in `AT_HWCAP` until the LSE helper set is fully coverage-clean; runtimes can fall back to LL/SC paths.
+- Stopped advertising optional crypto/LSE features in `AT_HWCAP` until those helper sets are fully coverage-clean; runtimes can fall back to baseline FP/ASIMD paths.
+- Added `LDNP`/`STNP` handling by treating non-temporal pair loads/stores like ordinary no-writeback pair transfers. This removes the `0xa8007c3f` illegal-instruction trap seen in Bun TypeScript runs.
 - Added ARM64 `preadv`/`pwritev` implementations and wired syscalls 69/70 to
   remove Node/npm fallback noise.
 - Reclassified the earlier `HIGHBITS pc=0xefec3698` noise as an invalid
@@ -329,7 +331,7 @@ Immediate plan:
 
 1. keep the Makefile target as the single command for coverage regressions;
 2. continue tracing the Bun allocator corruption through atomics/TLS/threading;
-3. finish LSE helper validation before re-advertising `HWCAP_ATOMICS`;
+3. finish optional crypto/LSE helper validation before re-advertising those HWCAP bits;
 4. only expand coverage further after Bun install/run/test/build are green and
    stderr-clean.
 
