@@ -109,6 +109,77 @@ void mem_remove_reservations(struct mem *mem, page_t start, pages_t pages) {
     }
 }
 
+int mem_set_reservation_flags(struct mem *mem, page_t start, pages_t pages, unsigned flags) {
+    if (pages == 0)
+        return 0;
+
+    page_t end = start + pages;
+    for (struct mem_reservation *r = mem->reservations; r; r = r->next) {
+        page_t r_end = r->start + r->pages;
+        if (r->start >= end || r_end <= start)
+            continue;
+
+        page_t overlap_start = r->start > start ? r->start : start;
+        page_t overlap_end = r_end < end ? r_end : end;
+        pages_t before = overlap_start - r->start;
+        pages_t overlap = overlap_end - overlap_start;
+        pages_t after = r_end - overlap_end;
+        unsigned old_flags = r->flags;
+        unsigned new_flags = flags | (old_flags & P_ANONYMOUS);
+
+        if (before && after) {
+            struct mem_reservation *middle = malloc(sizeof(struct mem_reservation));
+            struct mem_reservation *tail = malloc(sizeof(struct mem_reservation));
+            if (middle == NULL || tail == NULL) {
+                free(middle);
+                free(tail);
+                return _ENOMEM;
+            }
+            tail->start = overlap_end;
+            tail->pages = after;
+            tail->flags = old_flags;
+            tail->next = r->next;
+
+            middle->start = overlap_start;
+            middle->pages = overlap;
+            middle->flags = new_flags;
+            middle->next = tail;
+
+            r->pages = before;
+            r->next = middle;
+            r = tail;
+        } else if (before) {
+            struct mem_reservation *middle = malloc(sizeof(struct mem_reservation));
+            if (middle == NULL)
+                return _ENOMEM;
+            middle->start = overlap_start;
+            middle->pages = overlap;
+            middle->flags = new_flags;
+            middle->next = r->next;
+
+            r->pages = before;
+            r->next = middle;
+            r = middle;
+        } else if (after) {
+            struct mem_reservation *tail = malloc(sizeof(struct mem_reservation));
+            if (tail == NULL)
+                return _ENOMEM;
+            tail->start = overlap_end;
+            tail->pages = after;
+            tail->flags = old_flags;
+            tail->next = r->next;
+
+            r->start = overlap_start;
+            r->pages = overlap;
+            r->flags = new_flags;
+            r->next = tail;
+        } else {
+            r->flags = new_flags;
+        }
+    }
+    return 0;
+}
+
 // Recursively free page table nodes at given level
 static void pt_node_free(void *node, int level) {
     if (node == NULL)
@@ -625,6 +696,11 @@ int pt_set_flags(struct mem *mem, page_t start, pages_t pages, int flags) {
                 return errno_map();
         }
     }
+#ifdef GUEST_ARM64
+    int err = mem_set_reservation_flags(mem, start, pages, flags);
+    if (err < 0)
+        return err;
+#endif
     mem_changed(mem);
     return 0;
 }

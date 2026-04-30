@@ -447,6 +447,8 @@ static void receive_signal(struct sighand *sighand, struct siginfo_ *info) {
 #if defined(GUEST_ARM64)
     // ARM64 spec: exceptions clear the exclusive monitor
     current->cpu.excl_addr = UINT64_MAX;
+    current->cpu.excl_pair_addr = UINT64_MAX;
+    current->cpu.excl_pair_size = 0;
     current->cpu.regs[0] = info->sig;
     current->cpu.pc = sighand->action[info->sig].handler;
     addr_t sp = current->cpu.sp;  // Use addr_t (64-bit) for ARM64

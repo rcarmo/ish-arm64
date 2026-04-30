@@ -64,9 +64,11 @@ struct task *task_create_(struct task *parent) {
 
 #ifdef GUEST_ARM64
     // Invalidate exclusive monitor after copying parent state.
-    // Child must not inherit parent's LDXR reservation, as any context
-    // switch or interrupt (including fork/clone) invalidates exclusive state.
+    // Child must not inherit parent's reservation, as any context switch or
+    // interrupt (including fork/clone) invalidates exclusive state.
     task->cpu.excl_addr = UINT64_MAX;
+    task->cpu.excl_pair_addr = UINT64_MAX;
+    task->cpu.excl_pair_size = 0;
 #endif
 
     // Initialize blocking state for deadlock detection.

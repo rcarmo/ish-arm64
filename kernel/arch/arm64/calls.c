@@ -79,8 +79,8 @@ syscall_t syscall_table[] = {
     [66]  = (syscall_t) sys_writev,
     [67]  = (syscall_t) sys_pread,
     [68]  = (syscall_t) sys_pwrite,
-    [69]  = (syscall_t) syscall_stub, // preadv
-    [70]  = (syscall_t) syscall_stub, // pwritev
+    [69]  = (syscall_t) sys_preadv,
+    [70]  = (syscall_t) sys_pwritev,
     [71]  = (syscall_t) sys_sendfile64,
     [72]  = (syscall_t) sys_pselect,
     [73]  = (syscall_t) sys_ppoll,
@@ -287,6 +287,16 @@ syscall_t syscall_table[] = {
     [289] = (syscall_t) syscall_stub, // pkey_alloc
     [290] = (syscall_t) syscall_stub, // pkey_free
     [291] = (syscall_t) sys_statx,
+    [293] = (syscall_t) syscall_silent_stub, // rseq
+    [425] = (syscall_t) syscall_silent_stub, // io_uring_setup
+    [426] = (syscall_t) syscall_silent_stub, // io_uring_enter
+    [427] = (syscall_t) syscall_silent_stub, // io_uring_register
+    [434] = (syscall_t) syscall_silent_stub, // pidfd_open
+    [435] = (syscall_t) sys_clone3,
+    [436] = (syscall_t) sys_close_range,
+    [437] = (syscall_t) syscall_silent_stub, // openat2
+    [438] = (syscall_t) syscall_silent_stub, // pidfd_getfd
+    [439] = (syscall_t) syscall_silent_stub, // faccessat2
 };
 
 #define NUM_SYSCALLS (sizeof(syscall_table) / sizeof(syscall_table[0]))

@@ -29,6 +29,49 @@
 
 #define FAKEFS_MAX_BIND_MOUNTS 32
 
+static inline uint64_t host_stat_atime_sec(const struct stat *st) {
+#if defined(__APPLE__)
+    return st->st_atimespec.tv_sec;
+#else
+    return st->st_atim.tv_sec;
+#endif
+}
+
+static inline uint64_t host_stat_mtime_sec(const struct stat *st) {
+#if defined(__APPLE__)
+    return st->st_mtimespec.tv_sec;
+#else
+    return st->st_mtim.tv_sec;
+#endif
+}
+
+static inline uint64_t host_stat_ctime_sec(const struct stat *st) {
+#if defined(__APPLE__)
+    return st->st_ctimespec.tv_sec;
+#else
+    return st->st_ctim.tv_sec;
+#endif
+}
+
+static bool host_fd_get_path(int fd, char *out, size_t out_size) {
+#if defined(__APPLE__)
+    return fcntl(fd, F_GETPATH, out) == 0;
+#elif defined(__linux__)
+    char proc_path[64];
+    snprintf(proc_path, sizeof(proc_path), "/proc/self/fd/%d", fd);
+    ssize_t n = readlink(proc_path, out, out_size - 1);
+    if (n < 0)
+        return false;
+    out[n] = '\0';
+    return true;
+#else
+    (void)fd;
+    (void)out;
+    (void)out_size;
+    return false;
+#endif
+}
+
 /* Compute a relative symlink target from link_dir to abs_target.
  * link_dir is the absolute path of the directory containing the symlink.
  * abs_target is the absolute path the symlink should point to.
@@ -453,8 +496,12 @@ static int fakefs_mknod(struct mount *mount, const char *path, mode_t_ mode, dev
     stat.rdev = 0;
     if (S_ISBLK(mode) || S_ISCHR(mode))
         stat.rdev = dev;
-    if (path_get_inode(fs, path) == 0)
+    ino_t inode = path_get_inode(fs, path);
+    if (inode == 0) {
         path_create(fs, path, &stat);
+    } else {
+        inode_write_stat(fs, inode, &stat);
+    }
     db_commit(fs);
     return 0;
 }
@@ -499,9 +546,9 @@ static int fakefs_stat(struct mount *mount, const char *path, struct statbuf *fa
         /* Copy basic fields from real stat */
         fake_stat->size = real_stat.st_size;
         fake_stat->nlink = real_stat.st_nlink;
-        fake_stat->atime = real_stat.st_atimespec.tv_sec;
-        fake_stat->mtime = real_stat.st_mtimespec.tv_sec;
-        fake_stat->ctime = real_stat.st_ctimespec.tv_sec;
+        fake_stat->atime = host_stat_atime_sec(&real_stat);
+        fake_stat->mtime = host_stat_mtime_sec(&real_stat);
+        fake_stat->ctime = host_stat_ctime_sec(&real_stat);
         err = 0;
     } else {
         err = realfs.stat(mount, path, fake_stat);
@@ -704,11 +751,11 @@ static void __attribute__((constructor)) init_fake_fdops() {
  * without escaping the sandbox (absolute symlinks fail on iOS). */
 static int create_relative_symlink(int root_fd, const char *host_link,
                                     const char *host_path) {
-    /* Get the absolute path of root_fd (F_GETPATH resolves symlinks,
-     * e.g. /var -> /private/var on iOS) */
+    /* Get the absolute path of root_fd via the host FD-path ABI
+     * (F_GETPATH on Apple platforms, /proc/self/fd on Linux). */
     char root_abs[PATH_MAX];
-    if (fcntl(root_fd, F_GETPATH, root_abs) != 0) {
-        fprintf(stderr, "create_relative_symlink: F_GETPATH failed\n");
+    if (!host_fd_get_path(root_fd, root_abs, sizeof(root_abs))) {
+        fprintf(stderr, "create_relative_symlink: root fd path lookup failed\n");
         /* Fall back to absolute symlink */
         return symlinkat(host_path, root_fd, host_link);
     }
@@ -783,11 +830,11 @@ int fakefs_bind_mount(const char *linux_path, const char *host_path, bool read_o
     /* Log root_fd info for context */
     {
         char fd_path[PATH_MAX];
-        if (fcntl(g_fakefs_mount->root_fd, F_GETPATH, fd_path) == 0) {
+        if (host_fd_get_path(g_fakefs_mount->root_fd, fd_path, sizeof(fd_path))) {
             fprintf(stderr, "fakefs_bind_mount: root_fd=%d path=\"%s\"\n",
                     g_fakefs_mount->root_fd, fd_path);
         } else {
-            fprintf(stderr, "fakefs_bind_mount: root_fd=%d (F_GETPATH failed)\n",
+            fprintf(stderr, "fakefs_bind_mount: root_fd=%d (fd path lookup failed)\n",
                     g_fakefs_mount->root_fd);
         }
     }

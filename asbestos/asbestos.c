@@ -40,7 +40,11 @@ __thread int ish_thread_marker;
 
 extern int current_pid(void);
 
-// Stubs for debug hooks referenced from assembly/gen.c/tlb.c
+// Stubs / debug hooks referenced from assembly/gen.c/tlb.c
+// High-bit tracing is an opt-in diagnostic. It is useful when chasing W/X
+// register-extension bugs, but it is not a valid invariant for normal AArch64
+// execution: the dynamic linker and language runtimes legitimately keep tagged
+// and maskable 64-bit values in general-purpose registers.
 volatile bool g_trace_highbits = false;
 volatile addr_t g_watch_page_val = 0;
 
@@ -49,7 +53,19 @@ void c_watch_write_hit(addr_t addr, const char *caller) { (void)addr; (void)call
 void jit_watch_write_hit(struct cpu_state *cpu, addr_t store_addr, unsigned long *code_ptr) {
     (void)cpu; (void)store_addr; (void)code_ptr;
 }
-void jit_highbit_alert(struct cpu_state *cpu) { (void)cpu; }
+void jit_highbit_alert(struct cpu_state *cpu) {
+    static int reported = 0;
+    if (reported++)
+        return;
+    fprintf(stderr, "HIGHBITS pc=%#llx sp=%#llx\n",
+            (unsigned long long)cpu->pc,
+            (unsigned long long)cpu->sp);
+    for (int i = 0; i < 31; i++) {
+        if ((cpu->regs[i] >> 32) != 0) {
+            fprintf(stderr, "  x%d=%#llx\n", i, (unsigned long long)cpu->regs[i]);
+        }
+    }
+}
 
 static void fiber_block_disconnect(struct asbestos *asbestos, struct fiber_block *block);
 static void fiber_block_free(struct asbestos *asbestos, struct fiber_block *block);
@@ -292,6 +308,10 @@ static int cpu_step_to_interrupt(struct cpu_state *cpu, struct tlb *tlb) {
             memset(cache, 0, sizeof(tlb->block_cache));
             tlb->block_cache_gen = asbestos->invalidate_gen;
             memset(frame->ret_cache, 0, sizeof(frame->ret_cache));
+            // Any last_block pointer may now refer to a jetsam'd/stale fiber.
+            // Drop it whenever invalidate_gen changes, just like other cache
+            // invalidation paths below.
+            frame->last_block = NULL;
         }
 
         addr_t ip = CPU_IP(&frame->cpu);

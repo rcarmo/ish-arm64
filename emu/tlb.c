@@ -4,19 +4,34 @@
 #include "kernel/memory.h"
 #include "kernel/fs.h"
 #include "util/sync.h"
+#include "asbestos/frame.h"
 
 void tlb_refresh(struct tlb *tlb, struct mmu *mmu) {
     if (tlb->mmu == mmu && tlb->mem_changes == mmu->changes)
         return;
-    if (tlb->mmu != mmu) {
-        // Address space changed (execve); block cache and ret_cache are invalid
+
+    bool mmu_changed = (tlb->mmu != mmu);
+    bool mappings_changed = (tlb->mmu == mmu && tlb->mem_changes != mmu->changes);
+
+    if (mmu_changed || mappings_changed) {
+        // The persistent threaded-code caches contain host pointers into guest-code
+        // fiber blocks. They must be dropped whenever mappings change, not just
+        // when the mmu pointer itself changes, because execve/remap paths can keep
+        // the same mmu object while replacing the underlying mappings.
         memset(tlb->block_cache, 0, sizeof(tlb->block_cache));
         tlb->block_cache_gen = 0;
+
         if (tlb->frame != NULL) {
-            free(tlb->frame);
-            tlb->frame = NULL;
+            if (mmu_changed) {
+                free(tlb->frame);
+                tlb->frame = NULL;
+            } else {
+                memset(tlb->frame->ret_cache, 0, sizeof(tlb->frame->ret_cache));
+                tlb->frame->last_block = NULL;
+            }
         }
     }
+
     tlb->mmu = mmu;
     tlb->dirty_page = TLB_PAGE_EMPTY;
     tlb->mem_changes = mmu->changes;
@@ -452,6 +467,8 @@ __no_instrument int c_stxr_cas(struct tlb *tlb, addr_t addr,
 
 // LDP/STP helper functions for pair loads/stores
 // Return: 0 on success, -1 on segfault
+static lock_t pair_atomic_lock = LOCK_INITIALIZER;
+
 __no_instrument int c_ldp64(struct tlb *tlb, addr_t addr, uint64_t *val1, uint64_t *val2) {
     void *ptr1 = __tlb_read_ptr(tlb, addr);
     if (ptr1 == NULL) {
@@ -507,6 +524,97 @@ __no_instrument int c_stp32(struct tlb *tlb, addr_t addr, uint32_t val1, uint32_
     *(uint32_t *)ptr1 = val1;
     *(uint32_t *)ptr2 = val2;
     return 0;
+}
+
+// STXP/STLXP pair compare-and-store helper.
+// Returns 0 on success, 1 on exclusive-store failure, -1 on segfault/unsupported size.
+__no_instrument int c_stxp_pair(struct tlb *tlb, addr_t addr,
+                                uint64_t expected_lo, uint64_t expected_hi,
+                                uint64_t new_lo, uint64_t new_hi,
+                                uint32_t size) {
+    int result = -1;
+
+    lock(&pair_atomic_lock);
+    if (size == 2) {
+        void *ptr1 = __tlb_write_ptr(tlb, addr);
+        void *ptr2 = __tlb_write_ptr(tlb, addr + 4);
+        if (ptr1 != NULL && ptr2 != NULL) {
+            uint32_t cur_lo = *(uint32_t *)ptr1;
+            uint32_t cur_hi = *(uint32_t *)ptr2;
+            if (cur_lo == (uint32_t)expected_lo && cur_hi == (uint32_t)expected_hi) {
+                *(uint32_t *)ptr1 = (uint32_t)new_lo;
+                *(uint32_t *)ptr2 = (uint32_t)new_hi;
+                result = 0;
+            } else {
+                result = 1;
+            }
+        }
+    } else if (size == 3) {
+        void *ptr1 = __tlb_write_ptr(tlb, addr);
+        void *ptr2 = __tlb_write_ptr(tlb, addr + 8);
+        if (ptr1 != NULL && ptr2 != NULL) {
+            uint64_t cur_lo = *(uint64_t *)ptr1;
+            uint64_t cur_hi = *(uint64_t *)ptr2;
+            if (cur_lo == expected_lo && cur_hi == expected_hi) {
+                *(uint64_t *)ptr1 = new_lo;
+                *(uint64_t *)ptr2 = new_hi;
+                result = 0;
+            } else {
+                result = 1;
+            }
+        }
+    }
+    unlock(&pair_atomic_lock);
+
+    return result;
+}
+
+// CASP/CASPA/CASPL/CASPAL helper. *old_lo/*old_hi enter with the expected
+// pair and are replaced with the actual memory pair, matching AArch64 CASP
+// writeback semantics. Returns 0 on a valid access, -1 on segfault.
+__no_instrument int c_casp_pair(struct tlb *tlb, addr_t addr,
+                                uint64_t *old_lo, uint64_t *old_hi,
+                                uint64_t new_lo, uint64_t new_hi,
+                                uint32_t size) {
+    int result = -1;
+
+    lock(&pair_atomic_lock);
+    if (size == 2) {
+        void *ptr1 = __tlb_write_ptr(tlb, addr);
+        void *ptr2 = __tlb_write_ptr(tlb, addr + 4);
+        if (ptr1 != NULL && ptr2 != NULL) {
+            uint32_t expected_lo = (uint32_t)*old_lo;
+            uint32_t expected_hi = (uint32_t)*old_hi;
+            uint32_t cur_lo = *(uint32_t *)ptr1;
+            uint32_t cur_hi = *(uint32_t *)ptr2;
+            if (cur_lo == expected_lo && cur_hi == expected_hi) {
+                *(uint32_t *)ptr1 = (uint32_t)new_lo;
+                *(uint32_t *)ptr2 = (uint32_t)new_hi;
+            }
+            *old_lo = cur_lo;
+            *old_hi = cur_hi;
+            result = 0;
+        }
+    } else if (size == 3) {
+        void *ptr1 = __tlb_write_ptr(tlb, addr);
+        void *ptr2 = __tlb_write_ptr(tlb, addr + 8);
+        if (ptr1 != NULL && ptr2 != NULL) {
+            uint64_t expected_lo = *old_lo;
+            uint64_t expected_hi = *old_hi;
+            uint64_t cur_lo = *(uint64_t *)ptr1;
+            uint64_t cur_hi = *(uint64_t *)ptr2;
+            if (cur_lo == expected_lo && cur_hi == expected_hi) {
+                *(uint64_t *)ptr1 = new_lo;
+                *(uint64_t *)ptr2 = new_hi;
+            }
+            *old_lo = cur_lo;
+            *old_hi = cur_hi;
+            result = 0;
+        }
+    }
+    unlock(&pair_atomic_lock);
+
+    return result;
 }
 
 // Interleaved SIMD load (LD2/LD3/LD4)

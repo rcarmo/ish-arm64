@@ -378,24 +378,25 @@ error:
     return res;
 }
 
-dword_t sys_writev(fd_t fd_no, addr_t iovec_addr, dword_t iovec_count) {
-    STRACE("writev(%d, %#x, %d)", fd_no, iovec_addr, iovec_count);
+static dword_t read_iovec_to_buf(addr_t iovec_addr, dword_t iovec_count,
+                                  struct iovec_ **iovec_out, char **buf_out,
+                                  size_t *size_out) {
     struct iovec_ *iovec = read_iovec(iovec_addr, iovec_count);
     if (IS_ERR(iovec))
         return PTR_ERR(iovec);
     size_t io_size = iovec_size(iovec, iovec_count);
-    char *buf = malloc(io_size);
+    char *buf = malloc(io_size ? io_size : 1);
     if (buf == NULL) {
         free(iovec);
         return _ENOMEM;
     }
 
-    ssize_t res = 0;
     size_t offset = 0;
     for (unsigned i = 0; i < iovec_count; i++) {
         if (user_read(iovec[i].base, buf + offset, iovec[i].len)) {
-            res = _EFAULT;
-            goto error;
+            free(buf);
+            free(iovec);
+            return _EFAULT;
         }
 
         size_t print_size = iovec[i].len;
@@ -403,9 +404,23 @@ dword_t sys_writev(fd_t fd_no, addr_t iovec_addr, dword_t iovec_count) {
         STRACE(" {\"%.*s\", %u}", print_size, buf + offset, iovec[i].len);
         offset += iovec[i].len;
     }
-    res = sys_write_buf(fd_no, buf, io_size);
 
-error:
+    *iovec_out = iovec;
+    *buf_out = buf;
+    *size_out = io_size;
+    return 0;
+}
+
+dword_t sys_writev(fd_t fd_no, addr_t iovec_addr, dword_t iovec_count) {
+    STRACE("writev(%d, %#x, %d)", fd_no, iovec_addr, iovec_count);
+    struct iovec_ *iovec;
+    char *buf;
+    size_t io_size;
+    dword_t err = read_iovec_to_buf(iovec_addr, iovec_count, &iovec, &buf, &io_size);
+    if (err != 0)
+        return err;
+
+    ssize_t res = sys_write_buf(fd_no, buf, io_size);
     free(buf);
     free(iovec);
     return res;
@@ -505,8 +520,10 @@ dword_t sys_pwrite(fd_t f, addr_t buf_addr, dword_t size, off_t_ off) {
     char *buf = malloc(size+1);
     if (buf == NULL)
         return _ENOMEM;
-    if (user_read(buf_addr, buf, size))
+    if (user_read(buf_addr, buf, size)) {
+        free(buf);
         return _EFAULT;
+    }
     lock(&fd->lock);
     ssize_t res;
     if (fd->ops->pwrite) {
@@ -525,6 +542,97 @@ dword_t sys_pwrite(fd_t f, addr_t buf_addr, dword_t size, off_t_ off) {
     }
     unlock(&fd->lock);
     free(buf);
+    return res;
+}
+
+static ssize_t fd_pwrite_buf(struct fd *fd, char *buf, size_t size, off_t_ off) {
+    if (fd->ops->pwrite)
+        return fd->ops->pwrite(fd, buf, size, off);
+    if (!fd->ops->lseek || !fd->ops->write)
+        return _ESPIPE;
+    off_t_ saved_off = fd->ops->lseek(fd, 0, LSEEK_CUR);
+    ssize_t res;
+    if ((res = fd->ops->lseek(fd, off, LSEEK_SET)) >= 0) {
+        res = fd->ops->write(fd, buf, size);
+        off_t_ lseek_res = fd->ops->lseek(fd, saved_off, LSEEK_SET);
+        assert(lseek_res >= 0);
+    }
+    return res;
+}
+
+static ssize_t fd_pread_buf(struct fd *fd, char *buf, size_t size, off_t_ off) {
+    if (fd->ops->pread)
+        return fd->ops->pread(fd, buf, size, off);
+    if (!fd->ops->lseek || !fd->ops->read)
+        return _ESPIPE;
+    off_t_ saved_off = fd->ops->lseek(fd, 0, LSEEK_CUR);
+    ssize_t res;
+    if ((res = fd->ops->lseek(fd, off, LSEEK_SET)) >= 0) {
+        res = fd->ops->read(fd, buf, size);
+        off_t_ lseek_res = fd->ops->lseek(fd, saved_off, LSEEK_SET);
+        assert(lseek_res >= 0);
+    }
+    return res;
+}
+
+dword_t sys_pwritev(fd_t fd_no, addr_t iovec_addr, dword_t iovec_count, off_t_ off) {
+    STRACE("pwritev(%d, %#x, %d, %lld)", fd_no, iovec_addr, iovec_count, (long long)off);
+    struct fd *fd = f_get(fd_no);
+    if (fd == NULL)
+        return _EBADF;
+
+    struct iovec_ *iovec;
+    char *buf;
+    size_t io_size;
+    dword_t err = read_iovec_to_buf(iovec_addr, iovec_count, &iovec, &buf, &io_size);
+    if (err != 0)
+        return err;
+
+    lock(&fd->lock);
+    ssize_t res = fd_pwrite_buf(fd, buf, io_size, off);
+    unlock(&fd->lock);
+
+    free(buf);
+    free(iovec);
+    return res;
+}
+
+dword_t sys_preadv(fd_t fd_no, addr_t iovec_addr, dword_t iovec_count, off_t_ off) {
+    STRACE("preadv(%d, %#x, %d, %lld)", fd_no, iovec_addr, iovec_count, (long long)off);
+    struct fd *fd = f_get(fd_no);
+    if (fd == NULL)
+        return _EBADF;
+
+    struct iovec_ *iovec = read_iovec(iovec_addr, iovec_count);
+    if (IS_ERR(iovec))
+        return PTR_ERR(iovec);
+    size_t io_size = iovec_size(iovec, iovec_count);
+    char *buf = malloc(io_size ? io_size : 1);
+    if (buf == NULL) {
+        free(iovec);
+        return _ENOMEM;
+    }
+
+    lock(&fd->lock);
+    ssize_t res = fd_pread_buf(fd, buf, io_size, off);
+    unlock(&fd->lock);
+    if (res < 0)
+        goto out;
+
+    size_t offset = 0;
+    for (unsigned i = 0; i < iovec_count && offset < (size_t)res; i++) {
+        size_t chunk = iovec[i].len;
+        if (chunk > (size_t)res - offset)
+            chunk = (size_t)res - offset;
+        if (user_write(iovec[i].base, buf + offset, chunk)) {
+            res = _EFAULT;
+            goto out;
+        }
+        offset += chunk;
+    }
+out:
+    free(buf);
+    free(iovec);
     return res;
 }
 

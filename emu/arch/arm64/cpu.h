@@ -82,6 +82,14 @@ struct cpu_state {
     // Access atomically
     bool *poked_ptr;
     bool _poked;
+
+    // Exclusive monitor for LDXP/STXP pair atomicity.
+    // Keep these after the crash-handler-sensitive fields above so the
+    // hard-coded crash offsets used in main.c stay stable.
+    uint64_t excl_pair_addr;
+    uint64_t excl_pair_val_lo;
+    uint64_t excl_pair_val_hi;
+    uint32_t excl_pair_size;
 };
 
 #ifndef CPU_OFFSET

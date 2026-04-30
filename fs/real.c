@@ -24,6 +24,8 @@
 #include "fs/tty.h"
 #include "util/fchdir.h"
 
+int realfs_getpath(struct fd *fd, char *buf);
+
 static int getpath(int fd, char *buf) {
 #if defined(__linux__)
     char proc_fd[20];
@@ -151,6 +153,19 @@ int realfs_fstat(struct fd *fd, struct statbuf *fake_stat) {
     if (fstat(fd->real_fd, &real_stat) < 0)
         return errno_map();
     copy_stat(fake_stat, &real_stat);
+
+    // For fakefs/rootfs images we often ship placeholder regular files under
+    // /dev rather than real device nodes. Preserve the Linux-visible device
+    // semantics by reclassifying well-known device paths on fstat(), just like
+    // realfs_stat() already does for path-based lookup.
+    char path[MAX_PATH];
+    if (fd->mount != NULL && realfs_getpath(fd, path) == 0) {
+        dev_t_ devnum = realfs_devnum_for_path(path);
+        if (devnum != 0) {
+            fake_stat->mode = S_IFCHR | 0666;
+            fake_stat->rdev = devnum;
+        }
+    }
     return 0;
 }
 

@@ -48,3 +48,16 @@ if libarchive.found()
         command: ['ln', '-sf', 'fakefsify', '@OUTPUT@'],
         output: 'unfakefsify')
 endif
+
+if host_machine.system() == 'linux'
+    sdl2 = dependency('sdl2', required: false)
+    sdl2_ttf = dependency('SDL2_ttf', required: false)
+    vterm = dependency('vterm', required: false)
+    libutil = cc.find_library('util', required: false)
+    libvncserver = cc.find_library('vncserver', required: false)
+    if sdl2.found() and sdl2_ttf.found() and vterm.found() and libutil.found() and libvncserver.found()
+        executable('ish-sdl-vnc', ['ish_sdl_vnc.c'],
+            include_directories: includes,
+            dependencies: [sdl2, sdl2_ttf, vterm, libutil, libvncserver])
+    endif
+endif

@@ -1,9 +1,11 @@
 build/
+build-*/
 xcuserdata/
 .floo
 
 cross-*.txt
 root.tar.gz
+alpine-*-fakefs/
 
 node_modules
 app/xtermjs/xterm-dist

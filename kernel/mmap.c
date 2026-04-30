@@ -62,13 +62,15 @@ static addr_t do_mmap(addr_t addr, uint64_t len, dword_t prot, dword_t flags, fd
             return _EINVAL;
         page = PAGE(addr);
 #ifdef GUEST_ARM64
-        // Reject hints above 4GB to prevent Go's scavengeIndex metadata
-        // collision (Go tries arenas at 0x4000000000 whose metadata lands
-        // at 0x80000, colliding with program text). Also reject hints that
-        // would overlap the stack. Hints within the low 4GB are allowed —
-        // V8 Wasm guard regions legitimately need large mappings near the
-        // stack region (e.g. 0xee400000 + 256MB).
-        if (page >= 0x100000 || page + pages > STACK_TOP_PAGE) {
+        // ARM64 has a 48-bit guest page table, so high-address hints are
+        // legitimate. Bun/JSC in particular reserves heap/cage regions at
+        // high random hints and stores pointers derived from the returned
+        // address. Falling back to a low address while the runtime still uses
+        // high-derived metadata corrupts allocator freelists. Only reject
+        // ranges outside the 48-bit user address space, and protect the low
+        // 4GB stack gap from low-address hints.
+        if (page > USER_ADDR_MAX_PAGE || pages > USER_ADDR_MAX_PAGE - page ||
+                (page < 0x100000 && page + pages > STACK_TOP_PAGE)) {
             if (flags & MMAP_FIXED)
                 return _ENOMEM;
             addr = 0;

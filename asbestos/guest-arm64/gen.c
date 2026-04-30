@@ -754,6 +754,7 @@ extern void gadget_writeback_addr(void);
 // Atomic memory operation helpers
 extern void gadget_atomic_rmw(void);
 extern void gadget_atomic_cas(void);
+extern void gadget_atomic_casp(void);
 
 // Memory barrier (DMB ISH) for acquire/release semantics
 extern void gadget_dmb(void);
@@ -762,6 +763,7 @@ extern void gadget_dmb(void);
 extern void gadget_ldp64(void);
 extern void gadget_ldp32(void);
 extern void gadget_ldxp_c(void);
+extern void gadget_stxp_c(void);
 extern void gadget_stp64(void);
 extern void gadget_stp32(void);
 // Fused load/store pair with signed-offset addressing
@@ -1957,6 +1959,27 @@ static int gen_ldst(struct gen_state *state, uint32_t insn) {
         return 1;
     }
 
+    // Atomic compare-and-swap pair (CASP/CASPA/CASPL/CASPAL)
+    // Encoding overlaps single CAS, but bit23 is clear and size selects
+    // pair width: 0 = two 32-bit words, 1 = two 64-bit words.
+    if ((insn & 0x3f200c00) == 0x08200c00 && ((insn >> 23) & 1) == 0 &&
+            ((insn >> 30) & 0x3) <= 1) {
+        uint32_t pair_size = ((insn >> 30) & 0x1) + 2;
+        uint32_t A = (insn >> 22) & 1;
+        uint32_t R = (insn >> 15) & 1;
+        uint32_t rs = (insn >> 16) & 0x1f;
+        uint32_t rn = (insn >> 5) & 0x1f;
+        uint32_t rt = insn & 0x1f;
+
+        gen(state, (unsigned long) gadget_calc_addr_imm);
+        gen(state, rn | (0ULL << 8));
+        if (R) gen(state, (unsigned long) gadget_dmb);
+        gen(state, (unsigned long) gadget_atomic_casp);
+        gen(state, rs | ((uint64_t)rt << 8) | ((uint64_t)pair_size << 16));
+        if (A) gen(state, (unsigned long) gadget_dmb);
+        return 1;
+    }
+
     // Atomic compare-and-swap (CAS/CASA/CASL/CASAL)
     // Encoding: size:001000:1:A:1:Rs:R:11111:Rn:Rt
     // A=acquire (bit23), R=release (bit15)
@@ -2681,23 +2704,9 @@ static int gen_ldst(struct gen_state *state, uint32_t insn) {
                 if (o0) gen(state, (unsigned long) gadget_dmb);  // LDAXP: acquire
             } else {
                 if (o0) gen(state, (unsigned long) gadget_dmb);  // STLXP: release
-                // STXP/STLXP - Store pair
-                void (*stp_gadget)(void) = NULL;
-                switch (size) {
-                case 2: stp_gadget = gadget_stp32; break;
-                case 3: stp_gadget = gadget_stp64; break;
-                default:
-                    gen_interrupt(state, INT_UNDEFINED);
-                    return 0;
-                }
-                gen(state, (unsigned long) stp_gadget);
-                gen(state, rt | ((uint64_t)rt2 << 8));
-
-                // Set Rs = 0 to indicate success
-                if (rs != 31) {
-                    gen(state, (unsigned long) gadget_movz);
-                    gen(state, rs | (0 << 8) | (0ULL << 16) | (0ULL << 32));
-                }
+                // STXP/STLXP - Pair store exclusive with status result in Rs
+                gen(state, (unsigned long) gadget_stxp_c);
+                gen(state, rs | ((uint64_t)rt << 8) | ((uint64_t)rt2 << 16) | ((uint64_t)size << 24));
             }
             return 1;
         }

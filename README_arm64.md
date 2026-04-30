@@ -221,6 +221,132 @@ ninja -C build-arm64-release
 ./build-arm64-release/ish -f ./alpine-arm64-fakefs /bin/sh
 ```
 
+### Linux build + SDL/VNC debug harness
+
+For Linux-side debugging and interactive bring-up, the repository also includes a
+native Linux build path plus an SDL/VNC PTY harness similar to the other local
+emulator projects.
+
+```bash
+# Build the Linux host binary
+CC=clang meson setup build-arm64-linux -Dguest_arch=arm64 --buildtype=release
+ninja -C build-arm64-linux
+
+# Build the Linux SDL/VNC harness (requires SDL2, SDL2_ttf, libvterm, libvncserver)
+CC=clang meson setup build-linux-harness -Dguest_arch=arm64
+ninja -C build-linux-harness tools/ish-sdl-vnc
+
+# Run it against an existing ish binary + fakefs
+./tools/run-sdl-vnc.sh
+```
+
+Defaults used by `tools/run-sdl-vnc.sh`:
+
+- `ISH_BIN=./build-arm64-linux/ish`
+- `ROOTFS_DIR=./alpine-arm64-fakefs`
+- `VNC_PORT=5907`
+
+The harness launches `ish` under a PTY, renders the terminal via SDL, and exports
+same framebuffer over VNC for remote debugging.
+
+### Runtime coverage harness
+
+The local Linux bring-up flow is now captured in the top-level `Makefile` and the
+staged coverage script `tests/arm64/runtime-coverage.sh`. Meson is still the
+source of truth for build configuration; the Makefile only records the repeatable
+commands used during ARM64 runtime debugging.
+
+```bash
+# Build both Linux host binaries used for release/debug comparisons
+make build-arm64-linux-all
+
+# Run the staged runtime suite against the release binary
+make test-arm64-runtime-coverage
+
+# Re-run the same suite against the debug binary when investigating failures
+make test-arm64-runtime-coverage-debug
+```
+
+Useful knobs:
+
+```bash
+make test-arm64-runtime-coverage \
+  ROOTFS_DIR=$PWD/alpine-arm64-fakefs \
+  REPORT_DIR=/workspace/tmp \
+  TIMEOUT_S=120 \
+  INSTALL_TIMEOUT_S=1200
+```
+
+The coverage script currently exercises, in order:
+
+1. base shell/apk/tmp file I/O sanity checks;
+2. a C toolchain smoke test (`gcc --version`, compile, execute);
+3. Go (`go version`, `go env`, `go tool compile`, `go run`, `go build`, `go test`);
+4. Bun (`bun --version`, local `file:` dependency install, TypeScript run, test, build);
+5. Node/npm (`node --version`, `node -e`, `npm --version`, `npm run`).
+
+Each run writes a Markdown report named
+`ish-arm64-runtime-coverage-YYYYMMDD-HHMMSS.md` under `REPORT_DIR`. The suite is
+intentionally red during bring-up: failures are treated as emulator/runtime bugs
+to debug, not as cases to skip.
+
+Current Linux-host status from this pass:
+
+- Latest staged run: **16 / 20 passing**.
+- C coverage is green: `gcc --version`, compile, and execute all pass.
+- Go coverage is green: `go version`, `go env`, `go tool compile`, `go run`,
+  `go build` + execute, and `go test` all pass.
+- Node/npm coverage is green: `node --version`, `node -e`, `npm --version`, and
+  `npm run` all pass without the previous noisy `pwritev` stubs.
+- Fixed lazy `MAP_NORESERVE` reservation permissions: `mprotect()` now updates
+  reservation metadata, so later demand faults materialize pages with the new
+  permissions. This fixed the Node/V8 `0xb00c0000` write fault.
+- High ARM64 mmap hints are honored again when they fit in the 48-bit guest
+  address space. Bun/JSC heap/cage code stores pointers derived from returned
+  high mappings; silently relocating these reservations into low memory corrupts
+  allocator metadata.
+- Fixed the pair-exclusive `STXP/STLXP` gadget clobbering `_pc` (`x28`) while
+  loading the expected high word. The standalone `tests/arm64/atomics/ldxp-stlxp.c` now passes.
+- Added first-pass `CASP` decoding/helper plumbing for 128-bit compare-exchange;
+  the standalone `tests/arm64/atomics/cas128.c` is still red and remains a target.
+- Added ARM64 `preadv`/`pwritev` implementations and wired syscalls 69/70 to
+  remove Node/npm fallback noise.
+- Reclassified the earlier `HIGHBITS pc=0xefec3698` noise as an invalid
+  diagnostic invariant, not an emulator failure by itself. At
+  `/lib/ld-musl-aarch64.so.1` `_dlstart+0x15c`, musl executes
+  `ldr x3, [x5,#8]` and intentionally loads a 64-bit relocation word such as
+  `0x66900000401`, then immediately masks it with `and x3, x3, #0x7fffffff`.
+  Because normal AArch64 code can keep 64-bit tagged/masked values in GP
+  registers, the per-instruction high-bit tracer is opt-in via
+  `ISH_TRACE_HIGHBITS=1` instead of enabled for every runtime run.
+- Current blockers under the staged suite are Bun-specific runtime failures:
+  - `bun install`, TypeScript run, `bun test`, and `bun build` still fail;
+  - current signatures are allocator/free-list faults around the Bun binary's
+    fast allocation path (`0x4899afc`/`0x4899b00`) plus a remaining `0x19` read
+    in one build path.
+
+Immediate plan:
+
+1. keep the Makefile target as the single command for coverage regressions;
+2. finish `CASP`/128-bit atomic correctness (`tests/arm64/atomics/cas128.c` must pass);
+3. continue tracing the Bun allocator corruption through atomics/TLS/threading;
+4. only expand coverage further after Bun install/run/test/build are green and
+   stderr-clean.
+
+### Host ABI notes
+
+The Linux build now makes the host-specific ABI seams explicit instead of assuming
+Darwin-only structures and APIs:
+
+- `platform/host_context_aarch64.h` normalizes the AArch64 signal/ucontext ABI
+  used by JIT crash recovery on macOS and Linux.
+- `fs/fake.c` now localizes fd-path and stat-timestamp differences instead of
+  assuming `F_GETPATH` and `st_*timespec` everywhere.
+
+See also:
+
+- `docs/LINUX_BUILD_AND_HOST_ABI.md`
+
 ---
 
 ## Performance

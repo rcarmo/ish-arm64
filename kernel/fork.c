@@ -1,4 +1,5 @@
 #include <time.h>
+#include <stddef.h>
 #include "debug.h"
 #include "kernel/task.h"
 #include "fs/fd.h"
@@ -217,6 +218,45 @@ dword_t sys_clone(dword_t flags, addr_t stack, addr_t ptid, addr_t tls, addr_t c
     }
 
     return pid;
+}
+
+struct clone_args_ {
+    qword_t flags;
+    qword_t pidfd;
+    qword_t child_tid;
+    qword_t parent_tid;
+    qword_t exit_signal;
+    qword_t stack;
+    qword_t stack_size;
+    qword_t tls;
+    qword_t set_tid;
+    qword_t set_tid_size;
+    qword_t cgroup;
+};
+
+dword_t sys_clone3(addr_t args_addr, size_t size) {
+    STRACE("clone3(%#llx, %llu)", (unsigned long long)args_addr, (unsigned long long)size);
+
+    if (size < offsetof(struct clone_args_, exit_signal) + sizeof(qword_t))
+        return _EINVAL;
+    if (size > sizeof(struct clone_args_))
+        size = sizeof(struct clone_args_);
+
+    struct clone_args_ args = {};
+    if (user_read(args_addr, &args, size))
+        return _EFAULT;
+
+    if (args.pidfd != 0 || args.set_tid != 0 || args.set_tid_size != 0 || args.cgroup != 0)
+        return _EINVAL;
+    if (args.exit_signal & ~0xffULL)
+        return _EINVAL;
+
+    addr_t stack = (addr_t) args.stack;
+    if (args.stack_size != 0)
+        stack += (addr_t) args.stack_size;
+
+    dword_t flags = (dword_t) args.flags | (dword_t) args.exit_signal;
+    return sys_clone(flags, stack, (addr_t) args.parent_tid, (addr_t) args.tls, (addr_t) args.child_tid);
 }
 
 dword_t sys_fork() {

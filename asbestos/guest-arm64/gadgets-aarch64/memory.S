@@ -1191,6 +1191,80 @@ atomic_cas_segfault:
     mov w0, #INT_GPF
     b fiber_exit
 
+.gadget atomic_casp
+    mov x23, _addr              // save address
+    ldr x22, [_pc]              // rs | rt<<8 | size<<16 (size 2=32-pair, 3=64-pair)
+    add _pc, _pc, #8
+
+    and x9, x22, #0x1f          // rs (expected/result lo; hi is rs+1)
+    ubfx x10, x22, #8, #5       // rt (desired lo; hi is rt+1)
+    ubfx x11, x22, #16, #2      // element size
+    add x12, _cpu, #CPU_x0
+
+    // Load expected pair from Rs/Rs+1
+    cmp x9, #31
+    b.eq 1f
+    ldr x13, [x12, x9, lsl #3]
+    add x15, x9, #1
+    cmp x15, #31
+    b.eq 2f
+    ldr x14, [x12, x15, lsl #3]
+    b 3f
+1:  mov x13, #0
+2:  mov x14, #0
+3:
+    // Load desired pair from Rt/Rt+1
+    cmp x10, #31
+    b.eq 4f
+    ldr x20, [x12, x10, lsl #3]
+    add x15, x10, #1
+    cmp x15, #31
+    b.eq 5f
+    ldr x21, [x12, x15, lsl #3]
+    b 6f
+4:  mov x20, #0
+5:  mov x21, #0
+6:
+    sub sp, sp, #16
+    str x13, [sp]
+    str x14, [sp, #8]
+    save_c
+    sub x0, _tlb, #TLB_entries
+    mov x1, x23
+    add x2, sp, #0xa0           // &old_lo / expected_lo
+    add x3, sp, #0xa8           // &old_hi / expected_hi
+    mov x4, x20
+    mov x5, x21
+    mov w6, w11
+    bl NAME(c_casp_pair)
+    mov w19, w0
+    restore_c
+    mov _addr, x23
+
+    cbnz w19, atomic_casp_segfault
+
+    ldr x13, [sp]
+    ldr x14, [sp, #8]
+    add sp, sp, #16
+    add x12, _cpu, #CPU_x0
+    and x9, x22, #0x1f
+    cmp x9, #31
+    b.eq 7f
+    str x13, [x12, x9, lsl #3]
+    add x15, x9, #1
+    cmp x15, #31
+    b.eq 7f
+    str x14, [x12, x15, lsl #3]
+7:  gret
+
+atomic_casp_segfault:
+    add sp, sp, #16
+    str x23, [_cpu, #CPU_segfault_addr]
+    mov w8, #1
+    strb w8, [_cpu, #CPU_segfault_was_write]
+    mov w0, #INT_GPF
+    b fiber_exit
+
 /*
  * Memory barrier gadget for DMB/DSB/ISB and acquire/release semantics.
  * Since guest threads run as real host threads sharing the same physical
@@ -2397,6 +2471,9 @@ ldxr_done:
     // Save to exclusive monitor
     str _addr, [_cpu, #CPU_excl_addr]
     str _tmp, [_cpu, #CPU_excl_val]    // _tmp = x0 = loaded value
+    movn x8, #0
+    str x8, [_cpu, #CPU_excl_pair_addr]
+    str wzr, [_cpu, #CPU_excl_pair_size]
 
     // Store to Rt (unless Rt == 31 / XZR)
     cmp x23, #31
@@ -2525,6 +2602,14 @@ ldxp_c_done:
     cmn w19, #1
     b.eq ldxp_c_segfault
 
+    // Save pair exclusive monitor state
+    str x24, [_cpu, #CPU_excl_pair_addr]
+    str x20, [_cpu, #CPU_excl_pair_val_lo]
+    str x21, [_cpu, #CPU_excl_pair_val_hi]
+    str w26, [_cpu, #CPU_excl_pair_size]
+    movn x8, #0
+    str x8, [_cpu, #CPU_excl_addr]
+
     // Store to Rt
     add x9, _cpu, #CPU_x0
     cmp x23, #31
@@ -2538,6 +2623,91 @@ ldxp_c_done:
 ldxp_c_segfault:
     str x24, [_cpu, #CPU_segfault_addr]
     strb wzr, [_cpu, #CPU_segfault_was_write]
+    mov w0, #INT_GPF
+    b fiber_exit
+
+/*
+ * STXP/STLXP via C helper.
+ * Code stream: [gadget addr][rs | (rt << 8) | (rt2 << 16) | (size << 24)]
+ * Expects _addr = guest address (from calc_addr_imm)
+ */
+.gadget stxp_c
+    ldr x22, [_pc]
+    add _pc, _pc, #8
+    and x23, x22, #0x1f         // rs (status result)
+    ubfx x24, x22, #8, #5       // rt (new lo)
+    ubfx x25, x22, #16, #5      // rt2 (new hi)
+    ubfx x26, x22, #24, #2      // size
+    mov x27, _addr              // save guest address
+
+    // Load new values from guest regs
+    add x9, _cpu, #CPU_x0
+    cmp x24, #31
+    b.eq 1f
+    ldr x20, [x9, x24, lsl #3]
+    b 2f
+1:  mov x20, #0
+2:  cmp x25, #31
+    b.eq 3f
+    ldr x21, [x9, x25, lsl #3]
+    b 4f
+3:  mov x21, #0
+4:
+    // Check exclusive monitor state from the preceding LDXP/LDAXP
+    ldr x10, [_cpu, #CPU_excl_pair_addr]
+    ldr w11, [_cpu, #CPU_excl_pair_size]
+    cmp x10, x27
+    b.ne stxp_c_fail
+    cmp w11, w26
+    b.ne stxp_c_fail
+
+    // Call C helper: c_stxp_pair(tlb, addr, old_lo, old_hi, new_lo, new_hi, size)
+    ldr x19, [_cpu, #CPU_excl_pair_val_lo]
+    ldr x22, [_cpu, #CPU_excl_pair_val_hi]
+    save_c
+    sub x0, _tlb, #TLB_entries
+    mov x1, x27
+    mov x2, x19
+    mov x3, x22
+    mov x4, x20
+    mov x5, x21
+    mov w6, w26
+    bl NAME(c_stxp_pair)
+    mov w19, w0
+    restore_c
+    mov _addr, x27
+
+    // Invalidate pair exclusive monitor after the attempt
+    movn x8, #0
+    str x8, [_cpu, #CPU_excl_pair_addr]
+    str wzr, [_cpu, #CPU_excl_pair_size]
+
+    cmn w19, #1
+    b.eq stxp_c_segfault
+
+    // Store status to Rs (0=success, 1=failure)
+    add x9, _cpu, #CPU_x0
+    cmp x23, #31
+    b.eq 6f
+    and x8, x19, #0xffffffff
+    str x8, [x9, x23, lsl #3]
+6:  gret
+
+stxp_c_fail:
+    movn x8, #0
+    str x8, [_cpu, #CPU_excl_pair_addr]
+    str wzr, [_cpu, #CPU_excl_pair_size]
+    add x9, _cpu, #CPU_x0
+    cmp x23, #31
+    b.eq 7f
+    mov x8, #1
+    str x8, [x9, x23, lsl #3]
+7:  gret
+
+stxp_c_segfault:
+    str x27, [_cpu, #CPU_segfault_addr]
+    mov w8, #1
+    strb w8, [_cpu, #CPU_segfault_was_write]
     mov w0, #INT_GPF
     b fiber_exit
 

@@ -30,6 +30,7 @@ int must_check user_write_string(addr_t addr, const char *buf);
 
 // process lifecycle
 dword_t sys_clone(dword_t flags, addr_t stack, addr_t ptid, addr_t tls, addr_t ctid);
+dword_t sys_clone3(addr_t args, size_t size);
 dword_t sys_fork(void);
 dword_t sys_vfork(void);
 dword_t sys_execve(addr_t file, addr_t argv, addr_t envp);
@@ -92,8 +93,10 @@ struct iovec64_ {
 #endif
 dword_t sys_read(fd_t fd_no, addr_t buf_addr, dword_t size);
 dword_t sys_readv(fd_t fd_no, addr_t iovec_addr, dword_t iovec_count);
+dword_t sys_preadv(fd_t fd_no, addr_t iovec_addr, dword_t iovec_count, off_t_ off);
 dword_t sys_write(fd_t fd_no, addr_t buf_addr, dword_t size);
 dword_t sys_writev(fd_t fd_no, addr_t iovec_addr, dword_t iovec_count);
+dword_t sys_pwritev(fd_t fd_no, addr_t iovec_addr, dword_t iovec_count, off_t_ off);
 dword_t sys__llseek(fd_t f, dword_t off_high, dword_t off_low, addr_t res_addr, dword_t whence);
 dword_t sys_lseek(fd_t f, dword_t off, dword_t whence);
 qword_t sys_lseek64(fd_t f, sqword_t off, dword_t whence);
@@ -106,6 +109,7 @@ dword_t sys_dup(fd_t fd);
 dword_t sys_dup2(fd_t fd, fd_t new_fd);
 dword_t sys_dup3(fd_t f, fd_t new_f, int_t flags);
 dword_t sys_close(fd_t fd);
+dword_t sys_close_range(uint_t first, uint_t last, uint_t flags);
 dword_t sys_fsync(fd_t f);
 dword_t sys_flock(fd_t fd, dword_t operation);
 int_t sys_pipe(addr_t pipe_addr);
