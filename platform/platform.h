@@ -27,6 +27,13 @@ struct uptime_info {
 };
 struct uptime_info get_uptime(void);
 
+// Guest-visible CPU topology. Keep this deterministic instead of mirroring the
+// host CPU count: exposing all host cores makes modern runtimes (Bun/JSC/V8) fan
+// out too aggressively for the emulator.
+#ifndef PLATFORM_GUEST_CPU_COUNT
+#define PLATFORM_GUEST_CPU_COUNT 4
+#endif
+
 // Host OS shims. Keep Linux/macOS/iOS API differences behind platform/* so
 // emulator/kernel code can include one stable interface.
 int platform_fd_get_path(int fd, char *out, size_t out_size);

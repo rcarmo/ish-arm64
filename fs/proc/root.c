@@ -26,7 +26,7 @@ static int proc_show_stat(struct proc_entry *UNUSED(entry), struct proc_data *bu
 }
 
 static int proc_show_cpuinfo(struct proc_entry *UNUSED(entry), struct proc_data *buf) {
-    unsigned cpus = sysconf(_SC_NPROCESSORS_ONLN);
+    unsigned cpus = PLATFORM_GUEST_CPU_COUNT;
     for (unsigned i = 0; i < cpus; i++) {
         proc_printf(buf, "processor\t: %u\n", i);
 #ifdef GUEST_ARM64

@@ -12,6 +12,7 @@
 #include <limits.h>
 #include <string.h>
 #include "kernel/calls.h"
+#include "platform/platform.h"
 
 static bool resource_valid(int resource) {
     return resource >= 0 && resource < RLIMIT_NLIMITS_;
@@ -226,8 +227,8 @@ int_t sys_sched_getaffinity(pid_t_ pid, dword_t cpusetsize, addr_t cpuset_addr) 
             return _ESRCH;
     }
 
-    unsigned cpus = sysconf(_SC_NPROCESSORS_ONLN);
-    char cpuset[cpus / 8 + 1];
+    unsigned cpus = PLATFORM_GUEST_CPU_COUNT;
+    char cpuset[(PLATFORM_GUEST_CPU_COUNT + 7) / 8];
     if (cpusetsize < sizeof(cpuset))
         return _EINVAL;
     memset(cpuset, 0, sizeof(cpuset));
