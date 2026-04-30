@@ -254,6 +254,7 @@ dword_t sys_getsid(void);
 int_t sys_sched_yield(void);
 int_t sys_prctl(dword_t option, addr_t arg2, addr_t arg3, addr_t arg4, addr_t arg5);
 int_t sys_arch_prctl(int_t code, addr_t addr);
+int_t sys_membarrier(int_t cmd, dword_t flags, int_t cpu_id);
 int_t sys_reboot(int_t magic, int_t magic2, int_t cmd);
 
 // system information

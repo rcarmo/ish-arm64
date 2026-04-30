@@ -244,6 +244,17 @@ int_t sys_sched_setaffinity(pid_t_ UNUSED(pid), dword_t UNUSED(cpusetsize), addr
     return 0;
 }
 
+int_t sys_getcpu(addr_t cpu_addr, addr_t node_addr, addr_t UNUSED(tcache_addr)) {
+    STRACE("getcpu(%#llx, %#llx)", (unsigned long long)cpu_addr, (unsigned long long)node_addr);
+    dword_t cpu = 0;
+    dword_t node = 0;
+    if (cpu_addr && user_put(cpu_addr, cpu))
+        return _EFAULT;
+    if (node_addr && user_put(node_addr, node))
+        return _EFAULT;
+    return 0;
+}
+
 int_t sys_getpriority(int_t which, pid_t_ who) {
     STRACE("getpriority(%d, %d)", which, who);
     return 20;

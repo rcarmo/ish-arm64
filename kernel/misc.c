@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdatomic.h>
 #include "kernel/calls.h"
 
 #define PRCTL_SET_KEEPCAPS_ 8
@@ -27,6 +28,39 @@ int_t sys_prctl(dword_t option, addr_t arg2, addr_t UNUSED(arg3), addr_t UNUSED(
 int_t sys_arch_prctl(int_t code, addr_t addr) {
     STRACE("arch_prctl(%#x, %#x)", code, addr);
     return _EINVAL;
+}
+
+#define MEMBARRIER_CMD_QUERY 0
+#define MEMBARRIER_CMD_GLOBAL (1 << 0)
+#define MEMBARRIER_CMD_GLOBAL_EXPEDITED (1 << 1)
+#define MEMBARRIER_CMD_REGISTER_GLOBAL_EXPEDITED (1 << 2)
+#define MEMBARRIER_CMD_PRIVATE_EXPEDITED (1 << 3)
+#define MEMBARRIER_CMD_REGISTER_PRIVATE_EXPEDITED (1 << 4)
+#define MEMBARRIER_CMD_PRIVATE_EXPEDITED_SYNC_CORE (1 << 5)
+#define MEMBARRIER_CMD_REGISTER_PRIVATE_EXPEDITED_SYNC_CORE (1 << 6)
+#define MEMBARRIER_CMD_PRIVATE_EXPEDITED_RSEQ (1 << 7)
+#define MEMBARRIER_CMD_REGISTER_PRIVATE_EXPEDITED_RSEQ (1 << 8)
+
+#define MEMBARRIER_SUPPORTED_CMDS \
+    (MEMBARRIER_CMD_GLOBAL | \
+     MEMBARRIER_CMD_GLOBAL_EXPEDITED | \
+     MEMBARRIER_CMD_REGISTER_GLOBAL_EXPEDITED | \
+     MEMBARRIER_CMD_PRIVATE_EXPEDITED | \
+     MEMBARRIER_CMD_REGISTER_PRIVATE_EXPEDITED | \
+     MEMBARRIER_CMD_PRIVATE_EXPEDITED_SYNC_CORE | \
+     MEMBARRIER_CMD_REGISTER_PRIVATE_EXPEDITED_SYNC_CORE)
+
+int_t sys_membarrier(int_t cmd, dword_t flags, int_t cpu_id) {
+    STRACE("membarrier(%#x, %#x, %d)", cmd, flags, cpu_id);
+    if (cmd == MEMBARRIER_CMD_QUERY)
+        return MEMBARRIER_SUPPORTED_CMDS;
+    if (flags != 0)
+        return _EINVAL;
+    if (!(cmd & MEMBARRIER_SUPPORTED_CMDS) || (cmd & ~MEMBARRIER_SUPPORTED_CMDS))
+        return _EINVAL;
+    (void)cpu_id;
+    atomic_thread_fence(memory_order_seq_cst);
+    return 0;
 }
 
 #define REBOOT_MAGIC1 0xfee1dead
