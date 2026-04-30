@@ -1,21 +1,9 @@
 #include <fcntl.h>
 #include "kernel/calls.h"
-
-#ifdef __APPLE__
-#include <CommonCrypto/CommonCrypto.h>
-#include <CommonCrypto/CommonRandom.h>
-#else
-#include <unistd.h>
-#include <sys/syscall.h>
-#include <linux/random.h>
-#endif
+#include "platform/platform.h"
 
 int get_random(char *buf, size_t len) {
-#ifdef __APPLE__
-    return CCRandomGenerateBytes(buf, len) != kCCSuccess;
-#else
-    return syscall(SYS_getrandom, buf, len, 0) < 0;
-#endif
+    return platform_get_random_bytes(buf, len);
 }
 
 dword_t sys_getrandom(addr_t buf_addr, dword_t len, dword_t UNUSED(flags)) {

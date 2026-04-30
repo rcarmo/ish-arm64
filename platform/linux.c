@@ -1,4 +1,9 @@
+#define _GNU_SOURCE
 #include <sys/sysinfo.h>
+#include <sys/syscall.h>
+#include <linux/random.h>
+#include <pthread.h>
+#include <unistd.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
@@ -50,4 +55,33 @@ struct uptime_info get_uptime() {
         .load_15m = info.loads[2],
     };
     return uptime;
+}
+
+int platform_fd_get_path(int fd, char *out, size_t out_size) {
+    if (out_size == 0)
+        return -1;
+    char proc_path[64];
+    snprintf(proc_path, sizeof(proc_path), "/proc/self/fd/%d", fd);
+    ssize_t n = readlink(proc_path, out, out_size - 1);
+    if (n < 0)
+        return -1;
+    out[n] = '\0';
+    return 0;
+}
+
+uint64_t platform_stat_atime_sec(const struct stat *st) { return st->st_atim.tv_sec; }
+uint64_t platform_stat_mtime_sec(const struct stat *st) { return st->st_mtim.tv_sec; }
+uint64_t platform_stat_ctime_sec(const struct stat *st) { return st->st_ctim.tv_sec; }
+long platform_stat_atime_nsec(const struct stat *st) { return st->st_atim.tv_nsec; }
+long platform_stat_mtime_nsec(const struct stat *st) { return st->st_mtim.tv_nsec; }
+long platform_stat_ctime_nsec(const struct stat *st) { return st->st_ctim.tv_nsec; }
+
+int platform_get_random_bytes(char *buf, size_t len) {
+    return syscall(SYS_getrandom, buf, len, 0) < 0 ? -1 : 0;
+}
+
+void platform_set_thread_name(const char *name) {
+    char short_name[16];
+    snprintf(short_name, sizeof(short_name), "%s", name);
+    pthread_setname_np(pthread_self(), short_name);
 }

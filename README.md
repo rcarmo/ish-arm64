@@ -27,6 +27,15 @@ We have been progressively hardening the ARM64 guest backend and replacing ad-ho
   - `tools/run-sdl-vnc.sh`
 - Documented Linux-host ABI details in [docs/LINUX_BUILD_AND_HOST_ABI.md](docs/LINUX_BUILD_AND_HOST_ABI.md).
 
+### Platform separation
+
+Host OS differences are being moved behind `platform/platform.h` with one implementation per host under `platform/`:
+
+- `platform/linux.c`
+- `platform/darwin.c` for macOS/iOS-family hosts
+
+The first tranche centralizes FD-path lookup, stat timestamp fields, host random bytes, and thread naming so core emulator/kernel code no longer needs direct `__linux__`/`__APPLE__` branches for those details.
+
 ### Emulator/runtime fixes so far
 
 - Fixed stale threaded-code/TLB invalidation paths around mapping and exec transitions.

@@ -13,6 +13,7 @@
 #include "fs/fd.h"
 #include "fs/dev.h"
 #include "fs/real.h"
+#include "platform/platform.h"
 
 dword_t syscall_stub(void) {
     return _ENOSYS;
@@ -762,15 +763,9 @@ static inline int fast_fstat64(struct cpu_state *cpu) {
     fake_stat.atime = real_stat.st_atime;
     fake_stat.mtime = real_stat.st_mtime;
     fake_stat.ctime = real_stat.st_ctime;
-#if __APPLE__
-    fake_stat.atime_nsec = real_stat.st_atimespec.tv_nsec;
-    fake_stat.mtime_nsec = real_stat.st_mtimespec.tv_nsec;
-    fake_stat.ctime_nsec = real_stat.st_ctimespec.tv_nsec;
-#elif __linux__
-    fake_stat.atime_nsec = real_stat.st_atim.tv_nsec;
-    fake_stat.mtime_nsec = real_stat.st_mtim.tv_nsec;
-    fake_stat.ctime_nsec = real_stat.st_ctim.tv_nsec;
-#endif
+    fake_stat.atime_nsec = platform_stat_atime_nsec(&real_stat);
+    fake_stat.mtime_nsec = platform_stat_mtime_nsec(&real_stat);
+    fake_stat.ctime_nsec = platform_stat_ctime_nsec(&real_stat);
 
     // Convert to ARM64 stat structure
     struct stat_arm64 arm64stat = {};

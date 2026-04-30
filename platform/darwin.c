@@ -1,6 +1,10 @@
 #include <mach/mach.h>
 #include <sys/sysctl.h>
 #include <sys/time.h>
+#include <sys/fcntl.h>
+#include <pthread.h>
+#include <CommonCrypto/CommonCrypto.h>
+#include <CommonCrypto/CommonRandom.h>
 #include "platform/platform.h"
 
 struct cpu_usage get_cpu_usage() {
@@ -62,4 +66,24 @@ struct uptime_info get_uptime() {
         .load_15m = vm_loadavg.ldavg[2],
     };
     return uptime;
+}
+
+int platform_fd_get_path(int fd, char *out, size_t out_size) {
+    (void)out_size;
+    return fcntl(fd, F_GETPATH, out);
+}
+
+uint64_t platform_stat_atime_sec(const struct stat *st) { return st->st_atimespec.tv_sec; }
+uint64_t platform_stat_mtime_sec(const struct stat *st) { return st->st_mtimespec.tv_sec; }
+uint64_t platform_stat_ctime_sec(const struct stat *st) { return st->st_ctimespec.tv_sec; }
+long platform_stat_atime_nsec(const struct stat *st) { return st->st_atimespec.tv_nsec; }
+long platform_stat_mtime_nsec(const struct stat *st) { return st->st_mtimespec.tv_nsec; }
+long platform_stat_ctime_nsec(const struct stat *st) { return st->st_ctimespec.tv_nsec; }
+
+int platform_get_random_bytes(char *buf, size_t len) {
+    return CCRandomGenerateBytes(buf, len) == kCCSuccess ? 0 : -1;
+}
+
+void platform_set_thread_name(const char *name) {
+    pthread_setname_np(name);
 }

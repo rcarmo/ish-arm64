@@ -22,22 +22,10 @@
 #define ISH_INTERNAL
 #include "fs/fake.h"
 #include "fs/tty.h"
+#include "platform/platform.h"
 #include "util/fchdir.h"
 
 int realfs_getpath(struct fd *fd, char *buf);
-
-static int getpath(int fd, char *buf) {
-#if defined(__linux__)
-    char proc_fd[20];
-    sprintf(proc_fd, "/proc/self/fd/%d", fd);
-    ssize_t size = readlink(proc_fd, buf, MAX_PATH - 1);
-    if (size >= 0)
-        buf[size] = '\0';
-    return size;
-#elif defined(__APPLE__)
-    return fcntl(fd, F_GETPATH, buf);
-#endif
-}
 
 static int open_flags_real_from_fake(int flags) {
     int real_flags = 0;
@@ -123,15 +111,9 @@ static void copy_stat(struct statbuf *fake_stat, struct stat *real_stat) {
     fake_stat->atime = real_stat->st_atime;
     fake_stat->mtime = real_stat->st_mtime;
     fake_stat->ctime = real_stat->st_ctime;
-#if __APPLE__
-#define TIMESPEC(x) st_##x##timespec
-#elif __linux__
-#define TIMESPEC(x) st_##x##tim
-#endif
-    fake_stat->atime_nsec = real_stat->TIMESPEC(a).tv_nsec;
-    fake_stat->mtime_nsec = real_stat->TIMESPEC(m).tv_nsec;
-    fake_stat->ctime_nsec = real_stat->TIMESPEC(c).tv_nsec;
-#undef TIMESPEC
+    fake_stat->atime_nsec = platform_stat_atime_nsec(real_stat);
+    fake_stat->mtime_nsec = platform_stat_mtime_nsec(real_stat);
+    fake_stat->ctime_nsec = platform_stat_ctime_nsec(real_stat);
 }
 
 int realfs_stat(struct mount *mount, const char *path, struct statbuf *fake_stat) {
@@ -407,7 +389,7 @@ ssize_t realfs_readlink(struct mount *mount, const char *path, char *buf, size_t
 }
 
 int realfs_getpath(struct fd *fd, char *buf) {
-    int err = getpath(fd->real_fd, buf);
+    int err = platform_fd_get_path(fd->real_fd, buf, MAX_PATH);
     if (err < 0)
         return err;
 

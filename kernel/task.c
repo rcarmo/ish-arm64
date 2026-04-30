@@ -7,6 +7,7 @@
 #include "kernel/task.h"
 #include "kernel/memory.h"
 #include "emu/tlb.h"
+#include "platform/platform.h"
 
 __thread struct task *current;
 
@@ -222,9 +223,5 @@ void update_thread_name() {
     size_t pid_width = strlen(name);
     size_t name_width = snprintf(name, sizeof(name), "%s", current->comm);
     sprintf(name + (name_width < sizeof(name) - 1 - pid_width ? name_width : sizeof(name) - 1 - pid_width), "-%d", current->pid);
-#if __APPLE__
-    pthread_setname_np(name);
-#else
-    pthread_setname_np(pthread_self(), name);
-#endif
+    platform_set_thread_name(name);
 }
