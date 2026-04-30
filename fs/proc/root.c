@@ -32,8 +32,9 @@ static int proc_show_cpuinfo(struct proc_entry *UNUSED(entry), struct proc_data 
 #ifdef GUEST_ARM64
         // ARM64 format
         proc_printf(buf, "BogoMIPS\t: 48.00\n");
-        // Include crypto features that iSH ARM64 emulates
-        proc_printf(buf, "Features\t: fp asimd evtstrm aes pmull atomics\n");
+        // Keep /proc/cpuinfo aligned with AT_HWCAP: report only the conservative
+        // baseline until optional crypto/LSE helpers are coverage-clean.
+        proc_printf(buf, "Features\t: fp asimd evtstrm\n");
         proc_printf(buf, "CPU implementer\t: 0x00\n");
         proc_printf(buf, "CPU architecture: 8\n");
         proc_printf(buf, "CPU variant\t: 0x0\n");
