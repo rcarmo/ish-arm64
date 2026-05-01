@@ -823,7 +823,8 @@ void *mem_ptr(struct mem *mem, addr_t addr, int type) {
 #if ANON_MMAP_LIMIT_PAGES > 0
         atomic_fetch_add(&anon_page_count, 1);
 #endif
-        pt_map_nothing(mem, page, 1, P_WRITE | P_GROWSDOWN);
+        if (pt_map_nothing(mem, page, 1, P_WRITE | P_GROWSDOWN) >= 0)
+            mem_changed(mem);
         write_wrunlock(&mem->lock);
         read_wrlock(&mem->lock);
 
@@ -848,7 +849,8 @@ check_reservation: ;
 #if ANON_MMAP_LIMIT_PAGES > 0
             atomic_fetch_add(&anon_page_count, 1);
 #endif
-            pt_map_nothing(mem, page, 1, res->flags & ~P_GROWSDOWN);
+            if (pt_map_nothing(mem, page, 1, res->flags & ~P_GROWSDOWN) >= 0)
+                mem_changed(mem);
         }
         write_wrunlock(&mem->lock);
         read_wrlock(&mem->lock);
