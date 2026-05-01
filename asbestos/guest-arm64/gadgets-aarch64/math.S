@@ -7246,6 +7246,9 @@ make_fp_across fminnmv, fminnmv
     and x23, x8, #0x1f       // rt
     ubfx x24, x8, #8, #5     // rt2
 
+    // Preserve guest address for pre-indexed pair writeback; read_prep
+    // translates _addr to a host pointer.
+    mov x25, _addr
     read_prep 64, ldp_simd_s_1
     ldr w11, [_addr]
     ldr w12, [_addr, #4]
@@ -7262,6 +7265,7 @@ make_fp_across fminnmv, fminnmv
     add x10, x9, x10
     str x12, [x10]
     str xzr, [x10, #8]
+    mov _addr, x25
     gret
     read_bullshit 64, ldp_simd_s_1
 
@@ -7274,6 +7278,7 @@ make_fp_across fminnmv, fminnmv
     and x23, x8, #0x1f
     ubfx x24, x8, #8, #5
 
+    mov x25, _addr
     read_prep 128, ldp_simd_d_1
     ldr x11, [_addr]
     ldr x12, [_addr, #8]
@@ -7288,6 +7293,7 @@ make_fp_across fminnmv, fminnmv
     add x10, x9, x10
     str x12, [x10]
     str xzr, [x10, #8]
+    mov _addr, x25
     gret
     read_bullshit 128, ldp_simd_d_1
 
@@ -7300,6 +7306,7 @@ make_fp_across fminnmv, fminnmv
     and x23, x8, #0x1f
     ubfx x24, x8, #8, #5
 
+    mov x25, _addr
     read_prep 256, ldp_simd_q_1
     ldr x11, [_addr]
     ldr x12, [_addr, #8]
@@ -7316,6 +7323,7 @@ make_fp_across fminnmv, fminnmv
     add x10, x9, x10
     str x13, [x10]
     str x14, [x10, #8]
+    mov _addr, x25
     gret
     read_bullshit 256, ldp_simd_q_1
 
