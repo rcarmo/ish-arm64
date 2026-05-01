@@ -215,44 +215,112 @@ addr_t sys_mremap(addr_t addr, dword_t old_len, dword_t new_len, dword_t flags) 
     STRACE("mremap(%#x, %#x, %#x, %d)", addr, old_len, new_len, flags);
     if (PGOFFSET(addr) != 0)
         return _EINVAL;
+    if (old_len == 0 || new_len == 0)
+        return _EINVAL;
     if (flags & ~(MREMAP_MAYMOVE_ | MREMAP_FIXED_))
         return _EINVAL;
     if (flags & MREMAP_FIXED_) {
         FIXME("missing MREMAP_FIXED");
         return _EINVAL;
     }
-    pages_t old_pages = PAGE(old_len);
-    pages_t new_pages = PAGE(new_len);
 
-    // shrinking always works
+    page_t start = PAGE(addr);
+    pages_t old_pages = PAGE_ROUND_UP(old_len);
+    pages_t new_pages = PAGE_ROUND_UP(new_len);
+    addr_t result = addr;
+
+    write_wrlock(&current->mem->lock);
+
     if (new_pages <= old_pages) {
-        int err = pt_unmap(current->mem, PAGE(addr) + new_pages, old_pages - new_pages);
+        int err = pt_unmap(current->mem, start + new_pages, old_pages - new_pages);
         if (err < 0)
-            return _EFAULT;
-        return addr;
+            result = _EFAULT;
+        goto out;
     }
 
-    struct pt_entry *entry = mem_pt(current->mem, PAGE(addr));
-    if (entry == NULL)
-        return _EFAULT;
+    struct pt_entry *entry = mem_pt(current->mem, start);
+    if (entry == NULL) {
+        result = _EFAULT;
+        goto out;
+    }
     dword_t pt_flags = entry->flags;
-    for (page_t page = PAGE(addr); page < PAGE(addr) + old_pages; page++) {
+    for (page_t page = start; page < start + old_pages; page++) {
         entry = mem_pt(current->mem, page);
-        if (entry == NULL && entry->flags != pt_flags)
-            return _EFAULT;
+        if (entry == NULL || entry->flags != pt_flags) {
+            result = _EFAULT;
+            goto out;
+        }
     }
     if (!(pt_flags & P_ANONYMOUS)) {
         FIXME("mremap grow on file mappings");
-        return _EFAULT;
+        result = _EFAULT;
+        goto out;
     }
-    page_t extra_start = PAGE(addr) + old_pages;
+    page_t extra_start = start + old_pages;
     pages_t extra_pages = new_pages - old_pages;
-    if (!pt_is_hole(current->mem, extra_start, extra_pages))
-        return _ENOMEM;
-    int err = pt_map_nothing(current->mem, extra_start, extra_pages, pt_flags);
-    if (err < 0)
-        return err;
-    return addr;
+    bool is_prot_none = !(pt_flags & (P_READ | P_WRITE | P_EXEC));
+    if (pt_is_hole(current->mem, extra_start, extra_pages)) {
+#if ANON_MMAP_LIMIT_PAGES > 0
+        if (!is_prot_none && atomic_load(&anon_page_count) + (long)extra_pages > ANON_MMAP_LIMIT_PAGES) {
+            result = _ENOMEM;
+            goto out;
+        }
+        if (!is_prot_none)
+            atomic_fetch_add(&anon_page_count, (long)extra_pages);
+#endif
+        int err = pt_map_nothing(current->mem, extra_start, extra_pages, pt_flags);
+        if (err < 0) {
+#if ANON_MMAP_LIMIT_PAGES > 0
+            if (!is_prot_none)
+                atomic_fetch_sub(&anon_page_count, (long)extra_pages);
+#endif
+            result = err;
+        }
+        goto out;
+    }
+
+    if (!(flags & MREMAP_MAYMOVE_)) {
+        result = _ENOMEM;
+        goto out;
+    }
+
+    page_t new_start = pt_find_hole(current->mem, new_pages);
+    if (new_start == BAD_PAGE) {
+        result = _ENOMEM;
+        goto out;
+    }
+#if ANON_MMAP_LIMIT_PAGES > 0
+    if (!is_prot_none && atomic_load(&anon_page_count) + (long)new_pages > ANON_MMAP_LIMIT_PAGES) {
+        result = _ENOMEM;
+        goto out;
+    }
+    if (!is_prot_none)
+        atomic_fetch_add(&anon_page_count, (long)new_pages);
+#endif
+    int err = pt_map_nothing(current->mem, new_start, new_pages, pt_flags);
+    if (err < 0) {
+#if ANON_MMAP_LIMIT_PAGES > 0
+        if (!is_prot_none)
+            atomic_fetch_sub(&anon_page_count, (long)new_pages);
+#endif
+        result = err;
+        goto out;
+    }
+    if (!is_prot_none) {
+        for (pages_t i = 0; i < old_pages; i++) {
+            struct pt_entry *src = mem_pt(current->mem, start + i);
+            struct pt_entry *dst = mem_pt(current->mem, new_start + i);
+            memcpy((char *)dst->data->data + dst->offset,
+                   (char *)src->data->data + src->offset,
+                   PAGE_SIZE);
+        }
+    }
+    pt_unmap_always(current->mem, start, old_pages);
+    result = new_start << PAGE_BITS;
+
+out:
+    write_wrunlock(&current->mem->lock);
+    return result;
 }
 
 int_t sys_mprotect(addr_t addr, addr_t len, int_t prot) {
