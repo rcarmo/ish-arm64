@@ -76,6 +76,10 @@ struct task {
 
     addr_t clear_tid;
     addr_t robust_list;
+    addr_t rseq_addr;
+    dword_t rseq_len;
+    dword_t rseq_sig;
+    bool rseq_registered;
 
     // locked by pids_lock
     dword_t exit_code;

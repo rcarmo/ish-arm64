@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdatomic.h>
 #include "kernel/calls.h"
+#include "kernel/task.h"
 
 #define PRCTL_SET_KEEPCAPS_ 8
 #define PRCTL_SET_NAME_ 15
@@ -60,6 +61,43 @@ int_t sys_membarrier(int_t cmd, dword_t flags, int_t cpu_id) {
         return _EINVAL;
     (void)cpu_id;
     atomic_thread_fence(memory_order_seq_cst);
+    return 0;
+}
+
+#define RSEQ_FLAG_UNREGISTER 1
+#define RSEQ_ABI_SIZE 32
+
+int_t sys_rseq(addr_t rseq_addr, dword_t rseq_len, int_t flags, dword_t sig) {
+    STRACE("rseq(%#llx, %u, %#x, %#x)", (unsigned long long)rseq_addr, rseq_len, flags, sig);
+    if (flags & ~RSEQ_FLAG_UNREGISTER)
+        return _EINVAL;
+
+    if (flags & RSEQ_FLAG_UNREGISTER) {
+        if (!current->rseq_registered || current->rseq_addr != rseq_addr || current->rseq_sig != sig)
+            return _EINVAL;
+        current->rseq_addr = 0;
+        current->rseq_len = 0;
+        current->rseq_sig = 0;
+        current->rseq_registered = false;
+        return 0;
+    }
+
+    if (current->rseq_registered || rseq_addr == 0 || rseq_len < RSEQ_ABI_SIZE)
+        return _EINVAL;
+
+    dword_t cpu = 0;
+    qword_t rseq_cs = 0;
+    dword_t abi_flags = 0;
+    if (user_put(rseq_addr, cpu) ||
+        user_put(rseq_addr + 4, cpu) ||
+        user_put(rseq_addr + 8, rseq_cs) ||
+        user_put(rseq_addr + 16, abi_flags))
+        return _EFAULT;
+
+    current->rseq_addr = rseq_addr;
+    current->rseq_len = rseq_len;
+    current->rseq_sig = sig;
+    current->rseq_registered = true;
     return 0;
 }
 

@@ -91,6 +91,10 @@ struct task *task_create_(struct task *parent) {
     list_init(&task->queue);
     task->clear_tid = 0;
     task->robust_list = 0;
+    task->rseq_addr = 0;
+    task->rseq_len = 0;
+    task->rseq_sig = 0;
+    task->rseq_registered = false;
     task->futex_pipe[0] = -1;
     task->futex_pipe[1] = -1;
     task->did_exec = false;

@@ -714,6 +714,10 @@ int __do_execve(const char *file, struct exec_args argv, struct exec_args envp) 
     current->sighand->altstack = 0;
     unlock(&current->sighand->lock);
 
+    current->rseq_addr = 0;
+    current->rseq_len = 0;
+    current->rseq_sig = 0;
+    current->rseq_registered = false;
     current->did_exec = true;
     vfork_notify(current);
 
