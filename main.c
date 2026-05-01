@@ -7,10 +7,12 @@
 #include <termios.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <stddef.h>
 #include "kernel/calls.h"
 #include "kernel/task.h"
 #include "emu/cpu.h"
 #include "emu/tlb.h"
+#include "asbestos/frame.h"
 #include "platform/host_context_aarch64.h"
 #include "xX_main_Xx.h"
 
@@ -28,11 +30,14 @@ extern volatile bool g_trace_highbits;
 // Assembly trampoline: returns INT_JIT_CRASH via fiber_exit (defined in entry.S)
 extern void jit_crash_trampoline(void);
 
-// cpu-offsets.h values needed by crash handler
-#define CRASH_CPU_pc 272
-#define CRASH_CPU_segfault_addr 832
-#define CRASH_CPU_segfault_was_write 840
-#define CRASH_LOCAL_jit_exit_sp 920
+// Offsets needed by the async crash handler. Keep these derived from the C
+// structs instead of hard-coding cpu-offsets.h values; the signal handler runs
+// in C, and stale constants here corrupt JIT crash recovery when cpu_state or
+// fiber_frame changes.
+#define CRASH_CPU_pc offsetof(struct cpu_state, pc)
+#define CRASH_CPU_segfault_addr offsetof(struct cpu_state, segfault_addr)
+#define CRASH_CPU_segfault_was_write offsetof(struct cpu_state, segfault_was_write)
+#define CRASH_LOCAL_jit_exit_sp offsetof(struct fiber_frame, jit_exit_sp)
 
 static void crash_handler(int sig, siginfo_t *info, void *ctx) {
 #ifdef __aarch64__
