@@ -6806,7 +6806,10 @@ make_fp_across fminnmv, fminnmv
     ldr x12, [x10]          // low 64 bits
     ldr x13, [x10, #8]      // high 64 bits
 
-    // Translate address for write
+    // Translate address for write. Preserve the guest address in _addr so
+    // pre-indexed writeback (and callers following the load/store convention)
+    // do not see the translated host pointer left by write_prep.
+    mov x23, _addr
     mov x24, x12
     mov x25, x13
     write_prep 128, str_q_1
@@ -6818,6 +6821,7 @@ make_fp_across fminnmv, fminnmv
     str x13, [_addr, #8]
 
     write_done 128, str_q_1
+    mov _addr, x23
     gret
     write_bullshit 128, str_q_1
 
@@ -6852,7 +6856,8 @@ make_fp_across fminnmv, fminnmv
     ldr x16, [x15]          // rt2 low
     ldr x17, [x15, #8]      // rt2 high
     
-    // Save values (write_prep may destroy x0-x3)
+    // Save guest address and values (write_prep may destroy _addr/x0-x3).
+    mov x23, _addr
     mov x19, x13
     mov x20, x14
     mov x21, x16
@@ -6868,6 +6873,7 @@ make_fp_across fminnmv, fminnmv
     str x22, [_addr, #24]
 
     write_done 256, stp_q_1
+    mov _addr, x23
     gret
     write_bullshit 256, stp_q_1
 
