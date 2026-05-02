@@ -603,6 +603,7 @@ int pt_map(struct mem *mem, page_t start, pages_t pages, void *memory, size_t of
         pt->flags = flags;
 
     }
+    mem_changed(mem);
     return 0;
 }
 
