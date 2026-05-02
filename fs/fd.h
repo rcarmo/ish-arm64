@@ -1,6 +1,7 @@
 #ifndef FD_H
 #define FD_H
 #include <dirent.h>
+#include <sys/stat.h>
 #include "kernel/memory.h"
 #include "util/list.h"
 #include "util/sync.h"
@@ -121,8 +122,20 @@ int fd_setflags(struct fd *fd, int flags);
 #define NAME_MAX 255
 struct dir_entry {
     qword_t inode;
+    byte_t type; // Linux DT_* dirent type, or DT_UNKNOWN when unavailable
     char name[NAME_MAX + 1];
 };
+
+static inline byte_t dirent_type_from_mode(mode_t_ mode) {
+    if (S_ISREG(mode)) return DT_REG;
+    if (S_ISDIR(mode)) return DT_DIR;
+    if (S_ISLNK(mode)) return DT_LNK;
+    if (S_ISCHR(mode)) return DT_CHR;
+    if (S_ISBLK(mode)) return DT_BLK;
+    if (S_ISFIFO(mode)) return DT_FIFO;
+    if (S_ISSOCK(mode)) return DT_SOCK;
+    return DT_UNKNOWN;
+}
 
 #define LSEEK_SET 0
 #define LSEEK_CUR 1

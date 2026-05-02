@@ -217,6 +217,41 @@ into a host rwlock deadlock.
 
 ---
 
+
+## Directory entry type ABI
+
+Files:
+
+- `fs/fd.h`
+- `fs/dir.c`
+- `fs/real.c`
+- `fs/tmp.c`
+- `fs/proc.c`
+- `fs/pty.c`
+
+Linux `getdents64` exposes a `d_type` byte for each directory entry. The ARM64
+port previously returned `DT_UNKNOWN` for every entry even when the backing
+filesystem knew the type. That is legal but incomplete, and it breaks runtimes
+that use `d_type` as a fast path for recursive directory walks. Bun's
+`fs.cpSync(..., { recursive: true })` hit this during PiClaw workspace bootstrap:
+it treated subdirectories under `skel/.pi/skills` as ordinary copy targets and
+failed with:
+
+```text
+ENOTSUP: operation not supported on socket, copyfile
+```
+
+Directory reads now propagate or infer Linux `DT_*` values:
+
+- realfs uses host `dirent.d_type`;
+- tmpfs/proc infer from inode/proc modes;
+- devpts reports pty entries as `DT_CHR`;
+- fakefs inherits the realfs type while substituting its fake inode number.
+
+Validation: a minimal Bun recursive `fs.cpSync` directory tree copy succeeds,
+PiClaw no longer logs the bootstrap `ENOTSUP ... copyfile` warning, and staged
+runtime coverage remains 20/20.
+
 ## Current ABI shape
 
 The practical host-facing ABI is now:

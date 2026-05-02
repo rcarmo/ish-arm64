@@ -42,6 +42,7 @@ The first tranche centralizes FD-path lookup, stat timestamp fields, host random
 - Made ARM64 JIT memory-fault retry precise: faultable load/store gadgets now record the current guest PC, and async SIGSEGV/SIGBUS plus TLB/cross-page INT_GPF exits retry at that instruction instead of the containing block start. This fixed the Bun/JSC freelist corruption where `4897440: str x10, [x11]` could restart at `4897430: madd x11, x1, x11, x1` with `x11` already clobbered to the loop pointer.
 - Added conservative JavaScriptCore runtime shims for the ARM64 guest (`JSC_numberOfGCMarkers=1`, `JSC_useConcurrentGC=0`) so Bun avoids multi-marker/concurrent GC signal and timer interactions that can spin forever under syscall/gadget-boundary signal delivery. GC remains enabled, but marker count and concurrent GC are constrained.
 - Corrected ARM64 signal details found while tracing that hang: `siginfo_t` now keeps the 64-bit Linux padding before `_sifields`, `tkill`/`tgkill` report `SI_TKILL`, and syscall 240 is no longer miswired to `rt_sigreturn`.
+- Fixed `getdents64` directory-entry type reporting. Bun's recursive `fs.cpSync()` depends on `d_type`; returning `DT_UNKNOWN` for directories made it attempt a file copy on subdirectories and throw `ENOTSUP: operation not supported on socket, copyfile` during PiClaw workspace bootstrap.
 - Added ARM64 syscall coverage and quiet fallback stubs for modern runtime probes such as `rseq` and `io_uring_*`.
 - Implemented ARM64 `preadv`/`pwritev` syscall wiring, removing noisy Node/npm fallback stubs.
 - Fixed lazy `MAP_NORESERVE` reservation permissions so later `mprotect()` calls update reservation metadata before demand faults materialize pages.
@@ -54,7 +55,7 @@ The first tranche centralizes FD-path lookup, stat timestamp fields, host random
 
 ## Current coverage status
 
-Latest staged runtime report: **20 / 20 passing** (`/workspace/tmp/ish-arm64-runtime-coverage-20260502-170749.md`, `TIMEOUT_S=120`, `INSTALL_TIMEOUT_S=300`). Base shell/APK, C, Go, Bun, and Node/npm are green in the Linux-host coverage harness.
+Latest staged runtime report: **20 / 20 passing** (`/workspace/tmp/ish-arm64-runtime-coverage-20260502-201021.md`, `TIMEOUT_S=120`, `INSTALL_TIMEOUT_S=300`). Base shell/APK, C, Go, Bun, and Node/npm are green in the Linux-host coverage harness.
 
 | Area | Status | Notes |
 |---|---:|---|
@@ -76,6 +77,7 @@ Validated so far:
 - 50 consecutive minimal Bun local `file:` install repro runs passed (`RC:0`).
 - 20 consecutive `bun -e "console.log(1)"` repro runs passed.
 - `setTimeout`, a minimal `Bun.serve` + `wget`, and PiClaw's web server now respond inside the guest.
+- PiClaw workspace bootstrap no longer logs the `ENOTSUP ... copyfile` warning when seeding `.pi/skills`.
 - Staged runtime coverage is now **20 / 20 passing**, including Bun install, TypeScript run, test, and build.
 
 ## Quick start

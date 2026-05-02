@@ -292,7 +292,7 @@ to debug, not as cases to skip.
 
 Current Linux-host status from this pass:
 
-- Latest staged run: **20 / 20 passing** (`/workspace/tmp/ish-arm64-runtime-coverage-20260502-170749.md`, `TIMEOUT_S=120`, `INSTALL_TIMEOUT_S=300`).
+- Latest staged run: **20 / 20 passing** (`/workspace/tmp/ish-arm64-runtime-coverage-20260502-201021.md`, `TIMEOUT_S=120`, `INSTALL_TIMEOUT_S=300`).
 - C coverage is green: `gcc --version`, compile, and execute all pass.
 - Go coverage is green: `go version`, `go env`, `go tool compile`, `go run`,
   `go build` + execute, and `go test` all pass.
@@ -344,6 +344,10 @@ Current Linux-host status from this pass:
   includes the 64-bit Linux padding before `_sifields`, `tkill`/`tgkill` deliver
   `SI_TKILL`, and syscall 240 (`rt_tgsigqueueinfo`) is no longer accidentally
   wired to `rt_sigreturn`.
+- Fixed `getdents64` `d_type` reporting for realfs/fakefs/tmpfs/proc/devpts. Bun
+  `fs.cpSync(..., {recursive:true})` uses directory-entry types while walking
+  trees; returning `DT_UNKNOWN` caused PiClaw's bootstrap copy of `.pi/skills`
+  to try `copyfile` on subdirectories and fail with `ENOTSUP`.
 
 Immediate plan:
 
