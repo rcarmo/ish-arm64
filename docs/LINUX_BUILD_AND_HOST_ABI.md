@@ -134,10 +134,10 @@ Validation after the fix:
 - `make build-arm64-linux-all` passes.
 - 50 consecutive minimal Bun local `file:` install repro runs passed.
 - staged runtime coverage initially improved to **18 / 20 passing**; after the
-  JavaScriptCore GC marker shim below it is **20 / 20 passing**.
+  JavaScriptCore GC shims below it is **20 / 20 passing**.
 
 
-## JavaScriptCore GC marker compatibility shim
+## JavaScriptCore GC compatibility shims
 
 File:
 
@@ -147,27 +147,31 @@ The ARM64 guest now injects:
 
 ```text
 JSC_numberOfGCMarkers=1
+JSC_useConcurrentGC=0
 ```
 
-unless the guest process already provided a `JSC_numberOfGCMarkers=` value. This
-keeps JavaScriptCore GC enabled but avoids the parallel marker thread suspension
-path that currently does not fit iSH's signal-delivery model.
+unless the guest process already provided those variables. This keeps
+JavaScriptCore GC enabled but avoids the parallel marker thread suspension and
+concurrent GC paths that currently do not fit iSH's signal/timer delivery model.
 
 The observed hang was:
 
 - `bun -e "console.log(1)"`, `bun run index.ts`, and `bun test` stalled after
   the allocator/freelist fix;
+- `setTimeout` and external `Bun.serve` clients also stalled until concurrent GC
+  was disabled;
 - strace showed one JSC thread repeatedly using `tkill(..., SIGPWR)` to suspend
   another marker thread;
 - the target thread repeatedly acknowledged enough to wake a semaphore, then
   returned from the signal handler and re-entered `futex_wait`;
-- setting `JSC_numberOfGCMarkers=1` made `bun -e`, TypeScript run, `bun test`,
-  and `bun build` pass while preserving normal GC.
+- setting `JSC_numberOfGCMarkers=1` plus `JSC_useConcurrentGC=0` made
+  `bun -e`, timers, TypeScript run, `bun test`, `bun build`, and a minimal
+  `Bun.serve` smoke pass while preserving GC.
 
-This is a compatibility shim, not a final model for full parallel JSC GC. The
-underlying future cleanup is to make signal-delivered ucontexts and
-thread-suspension behavior close enough to native Linux that JSC's multi-marker
-handshake can run unmodified.
+These are compatibility shims, not a final model for full parallel/concurrent
+JSC GC. The underlying future cleanup is to make signal-delivered ucontexts,
+thread-suspension behavior, and timer/event-loop interaction close enough to
+native Linux that JSC's multi-marker/concurrent GC paths can run unmodified.
 
 ## ARM64 signal ABI fixes from the JSC trace
 
@@ -243,7 +247,7 @@ The practical host-facing ABI is now:
 ### Runtime compatibility shims
 
 - ARM64 exec-time environment injection in `kernel/exec.c`, currently including
-  `GODEBUG=asyncpreemptoff=1`, `GOMAXPROCS=2`, and `JSC_numberOfGCMarkers=1`
+  `GODEBUG=asyncpreemptoff=1`, `GOMAXPROCS=2`, `JSC_numberOfGCMarkers=1`, and `JSC_useConcurrentGC=0`
 
 This is not yet a full `host_*` layer, but it is a clear first split:
 

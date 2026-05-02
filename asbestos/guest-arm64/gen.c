@@ -424,6 +424,7 @@ extern void gadget_trn1_vec(void);         // TRN1 Vd, Vn, Vm (transpose even)
 extern void gadget_trn2_vec(void);         // TRN2 Vd, Vn, Vm (transpose odd)
 extern void gadget_zip1_vec(void);         // ZIP1 Vd, Vn, Vm (zip lower halves)
 extern void gadget_zip2_vec(void);         // ZIP2 Vd, Vn, Vm (zip upper halves)
+extern void gadget_rev16_vec(void);        // REV16 Vd, Vn (reverse bytes in 16-bit elements)
 extern void gadget_rev32_vec(void);        // REV32 Vd, Vn (reverse bytes in 32-bit elements)
 extern void gadget_rev64_vec(void);        // REV64 Vd, Vn (reverse bytes in 64-bit elements)
 extern void gadget_rbit_vec(void);         // RBIT Vd.xB, Vn.xB (reverse bits in each byte)
@@ -5113,6 +5114,17 @@ skip_three_different:
 
         gen(state, (unsigned long) gadget);
         gen(state, rd | (rn << 8));
+        return 1;
+    }
+
+    // REV16 (vector) - reverse bytes in 16-bit elements
+    // 0 Q 0 01110 00 10000 00001 10 Rn Rd
+    if ((insn & 0xbf3ffc00) == 0x0e201800) {
+        uint32_t Q = (insn >> 30) & 1;
+        uint32_t rn = (insn >> 5) & 0x1f;
+        uint32_t rd = insn & 0x1f;
+        gen(state, (unsigned long) gadget_rev16_vec);
+        gen(state, rd | (rn << 8) | (Q << 16));
         return 1;
     }
 

@@ -40,7 +40,7 @@ The first tranche centralizes FD-path lookup, stat timestamp fields, host random
 
 - Fixed stale threaded-code/TLB invalidation paths around mapping and exec transitions.
 - Made ARM64 JIT memory-fault retry precise: faultable load/store gadgets now record the current guest PC, and async SIGSEGV/SIGBUS plus TLB/cross-page INT_GPF exits retry at that instruction instead of the containing block start. This fixed the Bun/JSC freelist corruption where `4897440: str x10, [x11]` could restart at `4897430: madd x11, x1, x11, x1` with `x11` already clobbered to the loop pointer.
-- Added a conservative JavaScriptCore runtime shim for the ARM64 guest (`JSC_numberOfGCMarkers=1`) so Bun avoids the multi-marker GC signal-suspend handshake that can spin forever under syscall/gadget-boundary signal delivery. GC remains enabled; only parallel marker count is constrained.
+- Added conservative JavaScriptCore runtime shims for the ARM64 guest (`JSC_numberOfGCMarkers=1`, `JSC_useConcurrentGC=0`) so Bun avoids multi-marker/concurrent GC signal and timer interactions that can spin forever under syscall/gadget-boundary signal delivery. GC remains enabled, but marker count and concurrent GC are constrained.
 - Corrected ARM64 signal details found while tracing that hang: `siginfo_t` now keeps the 64-bit Linux padding before `_sifields`, `tkill`/`tgkill` report `SI_TKILL`, and syscall 240 is no longer miswired to `rt_sigreturn`.
 - Added ARM64 syscall coverage and quiet fallback stubs for modern runtime probes such as `rseq` and `io_uring_*`.
 - Implemented ARM64 `preadv`/`pwritev` syscall wiring, removing noisy Node/npm fallback stubs.
@@ -54,7 +54,7 @@ The first tranche centralizes FD-path lookup, stat timestamp fields, host random
 
 ## Current coverage status
 
-Latest staged runtime report: **20 / 20 passing** (`/workspace/tmp/ish-arm64-runtime-coverage-20260502-160741.md`, `TIMEOUT_S=120`, `INSTALL_TIMEOUT_S=300`). Base shell/APK, C, Go, Bun, and Node/npm are green in the Linux-host coverage harness.
+Latest staged runtime report: **20 / 20 passing** (`/workspace/tmp/ish-arm64-runtime-coverage-20260502-170749.md`, `TIMEOUT_S=120`, `INSTALL_TIMEOUT_S=300`). Base shell/APK, C, Go, Bun, and Node/npm are green in the Linux-host coverage harness.
 
 | Area | Status | Notes |
 |---|---:|---|
@@ -68,13 +68,14 @@ Latest staged runtime report: **20 / 20 passing** (`/workspace/tmp/ish-arm64-run
 
 The previous Bun local `file:` install allocator/free-list failure is fixed. The root cause was imprecise ARM64 JIT memory-fault retry: a fault in the freelist-fill store at `0x4897440` could restart the block at `0x4897430` after `x11` had already been repurposed as the loop pointer, producing a huge bogus `next` pointer. The current fix records a precise retry PC before each load/store and uses it for async host faults and TLB/cross-page memory-fault exits.
 
-The follow-on `bun -e`, TypeScript run, and `bun test` hang was narrowed to JavaScriptCore's parallel GC marker suspension. JSC uses a signal handler plus `sem_post`/`sigsuspend` to stop marker threads; under iSH's guest signal model, the controller could spin sending the GC signal to a thread parked in futex/syscall context. The current runtime shim injects `JSC_numberOfGCMarkers=1` for ARM64 guest processes, which keeps GC enabled while avoiding that multi-marker suspend handshake.
+The follow-on `bun -e`, TypeScript run, `bun test`, timer, and `Bun.serve` hangs were narrowed to JavaScriptCore GC interactions. JSC uses signal handlers plus `sem_post`/`sigsuspend` to stop marker threads, and concurrent GC can block timer-driven event-loop progress under iSH's syscall/gadget-boundary signal delivery. The current runtime shim injects `JSC_numberOfGCMarkers=1` and `JSC_useConcurrentGC=0` for ARM64 guest processes, which keeps GC enabled while avoiding those parallel/concurrent paths.
 
 Validated so far:
 
 - `make build-arm64-linux-all` passes.
 - 50 consecutive minimal Bun local `file:` install repro runs passed (`RC:0`).
 - 20 consecutive `bun -e "console.log(1)"` repro runs passed.
+- `setTimeout`, a minimal `Bun.serve` + `wget`, and PiClaw's web server now respond inside the guest.
 - Staged runtime coverage is now **20 / 20 passing**, including Bun install, TypeScript run, test, and build.
 
 ## Quick start

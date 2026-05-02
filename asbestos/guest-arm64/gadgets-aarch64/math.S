@@ -5717,6 +5717,36 @@ msub_store:
     gret
 
 /*
+ * REV16 - Reverse bytes in 16-bit elements (vector)
+ * Code stream: [gadget addr][rd | rn<<8 | Q<<16]
+ * Q: 0=64-bit vector (.8B), 1=128-bit vector (.16B)
+ */
+.gadget rev16_vec
+    ldr x8, [_pc]
+    add _pc, _pc, #8
+
+    and x9, x8, #0x1f       // rd
+    ubfx x10, x8, #8, #5    // rn
+    ubfx x11, x8, #16, #1   // Q
+
+    add x12, _cpu, #CPU_fp
+    lsl x13, x10, #4
+    add x13, x12, x13       // &Vn
+    lsl x14, x9, #4
+    add x14, x12, x14       // &Vd
+
+    ldr q0, [x13]
+    cbz x11, .Lrev16_vec_8b
+    rev16 v0.16b, v0.16b
+    str q0, [x14]
+    gret
+.Lrev16_vec_8b:
+    rev16 v0.8b, v0.8b
+    str d0, [x14]
+    str xzr, [x14, #8]
+    gret
+
+/*
  * REV32 - Reverse bytes in 32-bit elements (vector)
  * Code stream: [gadget addr][rd | rn<<8 | size<<16 | Q<<24]
  *

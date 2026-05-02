@@ -185,7 +185,7 @@ The fix was to make ARM64 JIT memory-fault retry precise without changing normal
 
 This makes the fault at `4897440: str x10, [x11]` retry at `4897440`, preserving the already-computed `x10/x11`, instead of restarting at `4897430` and re-running `madd` with `x11` holding the loop pointer. Validation: `make build-arm64-linux-all`, 50 consecutive Bun local `file:` install repro runs passed (`RC:0`), and staged runtime coverage initially improved to 18/20 passing.
 
-The remaining `bun -e`/TypeScript/`bun test` hangs were then traced to JavaScriptCore's parallel GC marker suspension: strace showed repeated `tkill(..., SIGPWR)` against a marker thread that acknowledged and re-entered futex wait. Injecting `JSC_numberOfGCMarkers=1` keeps GC enabled while avoiding the multi-marker signal-suspend handshake; with that shim, `bun -e "console.log(1)"` passed 20 consecutive runs and staged coverage reached 20/20. The same trace also fixed ARM64 `siginfo_t` padding, `SI_TKILL` for `tkill`/`tgkill`, and the syscall-240 table entry.
+The remaining `bun -e`/TypeScript/`bun test` hangs were then traced to JavaScriptCore's parallel GC marker suspension: strace showed repeated `tkill(..., SIGPWR)` against a marker thread that acknowledged and re-entered futex wait. Injecting `JSC_numberOfGCMarkers=1` plus `JSC_useConcurrentGC=0` keeps GC enabled while avoiding the multi-marker/concurrent GC paths; with those shims, `bun -e "console.log(1)"` passed 20 consecutive runs, `setTimeout` and `Bun.serve` progressed, PiClaw served its web UI inside the guest, and staged coverage reached 20/20. The same trace also fixed ARM64 `siginfo_t` padding, `SI_TKILL` for `tkill`/`tgkill`, and the syscall-240 table entry.
 
 ## Useful GDB breakpoints
 
