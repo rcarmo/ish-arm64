@@ -164,7 +164,9 @@ Expected source at this point is the 16-bit count loaded by:
 4897408: ldrh w11, [x0, #18]
 ```
 
-So the next audit target is whether `gadget_load16_imm_fast` at/near `4897408` is skipped, misordered, or overwritten before `4897430`.
+Follow-up GDB showed `gadget_load16_imm_fast` itself can be fragile on TLB read misses if it keeps the precomputed `CPU_x0` pointer in caller-saved `x11` across `read_prep`: the miss path calls C and can clobber `x11`. Recompute `add x11, _cpu, #CPU_x0` after `read_prep` in fast fused load gadgets before writing the destination register. This is a real correctness fix but was **not sufficient** to make Bun pass.
+
+After that fix, `ldrh w11, [x0,#18]` was observed setting guest `x11=0` for the bad size class, then `x11` later became the loop pointer (`mov x11, x8` inside the freelist-fill loop). The remaining bug appears to be that execution can re-enter/restart the `4897430` block (`madd x11, x1, x11, x1`) with `x11` still holding that loop pointer, causing a huge multiply. Next target: trace who sets `CPU_pc`/block entry back to `4897430` after the loop has already clobbered `x11`.
 
 ## Useful GDB breakpoints
 
@@ -236,8 +238,15 @@ Focus on the instruction window:
 4897430: madd x11, x1, x11, x1
 ```
 
-Audit `gadget_load16_imm_fast` and any control-flow/translation around that basic block. The concrete question is:
+`gadget_load16_imm_fast` was audited and one real miss-path clobber bug was found/fixed: fast fused loads must not assume caller-saved `x11` survives `read_prep` if the miss path calls C.
 
-> Why does guest `x11` still contain a stale heap pointer when `madd x11, x1, x11, x1` executes?
+The concrete remaining question is now:
 
-Use GDB watchpoints on the guest CPU register slot for `x11` (`cpu + CPU_x0 + 11*8`, offset `0x68`) once a Bun thread is active if you need to trace the exact overwrite/absence of write.
+> Why can execution enter `4897430` with guest `x11` already holding the freelist loop pointer from `4897438: mov x11, x8`?
+
+Use GDB watchpoints on:
+
+- guest CPU register slot for `x11`: `cpu + CPU_x0 + 11*8`, offset `0x68`
+- guest CPU `pc`: offset `0x110`
+
+A useful condition is `pc == 0x4897430 && x11 > 0xffffffffffff` after stopping on the Bun thread. This should identify the control-flow writer/re-entry path that restarts the block with stale loop state.

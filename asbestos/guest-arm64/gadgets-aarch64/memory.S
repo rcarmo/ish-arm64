@@ -543,7 +543,8 @@
     read_prep 64, load64_imm_fast_1
     ldr _tmp, [_addr]
     and x8, x22, #0x1f          // rd (guaranteed != 31)
-    str _tmp, [x11, x8, lsl #3] // x11 survives read_prep
+    add x11, _cpu, #CPU_x0      // read miss calls C and may clobber x11
+    str _tmp, [x11, x8, lsl #3]
     gret
     read_bullshit 64, load64_imm_fast_1
 
@@ -561,7 +562,8 @@
     read_prep 32, load32_imm_fast_1
     ldr w0, [_addr]
     and x8, x22, #0x1f
-    str x0, [x11, x8, lsl #3]   // x11 survives read_prep
+    add x11, _cpu, #CPU_x0      // read miss calls C and may clobber x11
+    str x0, [x11, x8, lsl #3]
     gret
     read_bullshit 32, load32_imm_fast_1
 
@@ -617,7 +619,8 @@
     read_prep 16, load16_imm_fast_1
     ldrh w0, [_addr]
     and x8, x22, #0x1f          // rd (guaranteed != 31)
-    str x0, [x11, x8, lsl #3]   // x11 survives read_prep
+    add x11, _cpu, #CPU_x0      // read miss calls C and may clobber x11
+    str x0, [x11, x8, lsl #3]
     gret
     read_bullshit 16, load16_imm_fast_1
 
@@ -635,7 +638,8 @@
     read_prep 8, load8_imm_fast_1
     ldrb w0, [_addr]
     and x8, x22, #0x1f
-    str x0, [x11, x8, lsl #3]   // x11 survives read_prep
+    add x11, _cpu, #CPU_x0      // read miss calls C and may clobber x11
+    str x0, [x11, x8, lsl #3]
     gret
     read_bullshit 8, load8_imm_fast_1
 
@@ -695,10 +699,10 @@
     add _addr, x12, x10
     and _addr, _addr, #0xffffffffffff
     mov x24, _addr
-    add x11, _cpu, #CPU_x0      // pre-compute, survives read_prep
     read_prep 64, load64_sp_imm_1
     ldr _tmp, [_addr]
     and x8, x22, #0x1f          // rd (guaranteed != 31)
+    add x11, _cpu, #CPU_x0      // read miss calls C and may clobber x11
     str _tmp, [x11, x8, lsl #3]
     gret
     read_bullshit 64, load64_sp_imm_1
@@ -712,10 +716,10 @@
     add _addr, x12, x10
     and _addr, _addr, #0xffffffffffff
     mov x24, _addr
-    add x11, _cpu, #CPU_x0      // pre-compute, survives read_prep
     read_prep 32, load32_sp_imm_1
     ldr w0, [_addr]
     and x8, x22, #0x1f
+    add x11, _cpu, #CPU_x0      // read miss calls C and may clobber x11
     str x0, [x11, x8, lsl #3]   // zero-extended 32→64
     gret
     read_bullshit 32, load32_sp_imm_1
@@ -1480,7 +1484,8 @@ atomic_casp_segfault:
     ldr x25, [_addr, #8]
     and x8, x22, #0x1f              // rt
     ubfx x9, x22, #8, #5            // rt2
-    str x23, [x11, x8, lsl #3]     // x11 survives read_prep
+    add x11, _cpu, #CPU_x0          // read miss calls C and may clobber x11
+    str x23, [x11, x8, lsl #3]
     str x25, [x11, x9, lsl #3]
     gret
     read_bullshit 128, ldp64_imm_fast_1
@@ -1524,7 +1529,8 @@ atomic_casp_segfault:
     ldr w25, [_addr, #4]
     and x8, x22, #0x1f              // rt
     ubfx x9, x22, #8, #5            // rt2
-    str x23, [x11, x8, lsl #3]     // x11 survives read_prep
+    add x11, _cpu, #CPU_x0          // read miss calls C and may clobber x11
+    str x23, [x11, x8, lsl #3]
     str x25, [x11, x9, lsl #3]
     gret
     read_bullshit 64, ldp32_imm_fast_1
