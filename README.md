@@ -80,6 +80,10 @@ Validated so far:
 - PiClaw workspace bootstrap no longer logs the `ENOTSUP ... copyfile` warning when seeding `.pi/skills`.
 - Staged runtime coverage is now **20 / 20 passing**, including Bun install, TypeScript run, test, and build.
 
+## go-gte workload probe
+
+`rcarmo/go-gte` now installs far enough inside the ARM64 guest to clone, install Python dependencies, build the Go CLI/bench/jitter commands, load a host-converted `gte-small.gtemodel`, and produce embeddings/benchmarks. The probe also exposed two remaining emulator gaps: missing AdvSIMD `FCVTL` support during in-guest model conversion and incorrect results in go-gte's ARM64 NEON SGEMM tests. Details and repro notes are in [docs/GO_GTE_PROGRESS.md](docs/GO_GTE_PROGRESS.md).
+
 ## Quick start
 
 ```bash
