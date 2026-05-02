@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <stdatomic.h>
+#include <sched.h>
 
 #define DEFAULT_CHANNEL memory
 #include "debug.h"
@@ -23,6 +24,16 @@ static void mem_changed(struct mem *mem);
 static struct mmu_ops mem_mmu_ops;
 
 #include "kernel/mm.h"
+
+static void reacquire_read_after_failed_jit_upgrade(wrlock_t *lock) {
+    // glibc rwlocks are writer-preferred in util/sync.h. If a JIT thread
+    // releases its read lock, fails trywrlock, then blocks in rdlock while a
+    // non-JIT fault handler is queued for write, both sides can deadlock. Spin
+    // with tryrdlock instead so the queued writer can acquire and release.
+    while (!read_wrtrylock(lock))
+        sched_yield();
+}
+
 
 
 #ifdef GUEST_ARM64
@@ -805,9 +816,10 @@ void *mem_ptr(struct mem *mem, addr_t addr, int type) {
         read_wrunlock(&mem->lock);
         if (in_jit) {
             if (!write_wrtrylock(&mem->lock)) {
-                // Can't get write lock — other threads hold read locks
-                // Re-acquire read lock and return NULL for GPF retry
-                read_wrlock(&mem->lock);
+                // Can't get write lock — other threads hold/read-wait on this
+                // writer-preferred rwlock. Re-acquire read without blocking a
+                // queued writer, then return NULL for GPF retry outside JIT.
+                reacquire_read_after_failed_jit_upgrade(&mem->lock);
                 return NULL;
             }
         } else {
@@ -839,7 +851,7 @@ check_reservation: ;
         read_wrunlock(&mem->lock);
         if (in_jit) {
             if (!write_wrtrylock(&mem->lock)) {
-                read_wrlock(&mem->lock);
+                reacquire_read_after_failed_jit_upgrade(&mem->lock);
                 return NULL;
             }
         } else {

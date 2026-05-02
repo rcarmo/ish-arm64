@@ -38,6 +38,7 @@ extern void jit_crash_trampoline(void);
 #define CRASH_CPU_segfault_addr offsetof(struct cpu_state, segfault_addr)
 #define CRASH_CPU_segfault_was_write offsetof(struct cpu_state, segfault_was_write)
 #define CRASH_LOCAL_jit_exit_sp offsetof(struct fiber_frame, jit_exit_sp)
+#define CRASH_LOCAL_jit_saved_pc offsetof(struct fiber_frame, jit_saved_pc)
 
 static void crash_handler(int sig, siginfo_t *info, void *ctx) {
 #ifdef __aarch64__
@@ -69,8 +70,13 @@ static void crash_handler(int sig, siginfo_t *info, void *ctx) {
         // Write crash info directly to cpu_state via _cpu pointer
         *(uint64_t *)(cpu_ptr + CRASH_CPU_segfault_addr) = guest_addr;
         *(int *)(cpu_ptr + CRASH_CPU_segfault_was_write) = was_write;
-        // Restore guest PC to block start for re-execution
-        *(uint64_t *)(cpu_ptr + CRASH_CPU_pc) = (uint64_t)jit_saved_pc;
+        // Restore guest PC to the latest faultable guest instruction for
+        // re-execution. This is usually more precise than the block-start TLS
+        // fallback and avoids re-running earlier side effects in the block.
+        uint64_t retry_pc = *(uint64_t *)(cpu_ptr + CRASH_LOCAL_jit_saved_pc);
+        if (retry_pc == 0)
+            retry_pc = (uint64_t)jit_saved_pc;
+        *(uint64_t *)(cpu_ptr + CRASH_CPU_pc) = retry_pc;
 
         // Restore SP to the value saved by fiber_enter, so fiber_exit
         // can correctly pop the callee-saved register frame.

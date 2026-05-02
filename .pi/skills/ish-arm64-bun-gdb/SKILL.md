@@ -176,7 +176,14 @@ huge_bad_next -> heap_base  mov  x11, x8
 heap_base += 0x60 ...       loop increments
 ```
 
-So the remaining bug is that execution can re-enter/restart the `4897430` block (`madd x11, x1, x11, x1`) with `x11` still holding the loop pointer from `4897438`, causing a huge multiply. Attempts to avoid this by globally splitting load/store blocks or setting `cpu->pc` around all load/store instructions made Bun hang often and were reverted. Next target: identify the exact retry/re-entry mechanism for `4897430` without broad block splitting.
+The fix was to make ARM64 JIT memory-fault retry precise without changing normal successful block execution:
+
+- Add `fiber_frame::jit_saved_pc` and a `gadget_set_jit_saved_pc` marker emitted before each ARM64 load/store instruction.
+- On async host SIGSEGV/SIGBUS recovery, restore `cpu->pc` from `frame->jit_saved_pc` instead of the block-start TLS fallback.
+- On TLB miss/cross-page memory fault paths that return `INT_GPF`, also restore `cpu->pc` from `LOCAL_jit_saved_pc` before `fiber_exit`.
+- Avoid the retry path deadlocking on writer-preferred rwlocks by using try-read reacquire after failed JIT lock upgrades and by not blocking on jetsam cleanup while still holding `mem->lock` for reading.
+
+This makes the fault at `4897440: str x10, [x11]` retry at `4897440`, preserving the already-computed `x10/x11`, instead of restarting at `4897430` and re-running `madd` with `x11` holding the loop pointer. Validation: `make build-arm64-linux-all` and 50 consecutive Bun local `file:` install repro runs passed (`RC:0`).
 
 ## Useful GDB breakpoints
 

@@ -31,6 +31,7 @@
 extern void gadget_interrupt(void);
 extern void gadget_exit(void);
 extern void gadget_set_pc(void);
+extern void gadget_set_jit_saved_pc(void);
 extern void gadget_trace(void);
 extern void gadget_check_highbits(void);
 
@@ -936,6 +937,11 @@ int gen_step(struct gen_state *state, struct tlb *tlb) {
     }
 
     enum arm64_insn_type type = arm64_classify_insn(insn);
+
+    if (type == INSN_LD_ST) {
+        gen(state, (unsigned long) gadget_set_jit_saved_pc);
+        gen(state, state->orig_ip);
+    }
 
     int result;
     switch (type) {

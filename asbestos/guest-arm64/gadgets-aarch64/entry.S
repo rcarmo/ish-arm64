@@ -288,6 +288,8 @@ segfault_read_cp:
     ldr x8, [_tlb, #(-TLB_entries+TLB_segfault_addr)]
     str x8, [_cpu, #CPU_segfault_addr]
     strb wzr, [_cpu, #CPU_segfault_was_write]
+    ldr x8, [_cpu, #LOCAL_jit_saved_pc]
+    str x8, [_cpu, #CPU_pc]
     mov w0, #INT_GPF
     b fiber_exit
 
@@ -346,6 +348,8 @@ segfault_write_cp:
     str x8, [_cpu, #CPU_segfault_addr]
     mov w9, #1
     strb w9, [_cpu, #CPU_segfault_was_write]
+    ldr x8, [_cpu, #LOCAL_jit_saved_pc]
+    str x8, [_cpu, #CPU_pc]
     mov w0, #INT_GPF
     b fiber_exit
 
@@ -356,6 +360,19 @@ segfault_write_cp:
 .gadget set_pc
     ldr x8, [_pc]
     str x8, [_cpu, #CPU_pc]
+    add _pc, _pc, #8
+    gret
+
+/*
+ * Record the precise guest PC to retry if a host SIGSEGV/SIGBUS is raised while
+ * executing a faultable JIT memory access. This intentionally does not update
+ * CPU_pc, because normal successful block execution should keep CPU_pc at the
+ * block/branch dispatch PC.
+ * Code stream: [gadget_set_jit_saved_pc addr][guest_pc (64-bit)]
+ */
+.gadget set_jit_saved_pc
+    ldr x8, [_pc]
+    str x8, [_cpu, #LOCAL_jit_saved_pc]
     add _pc, _pc, #8
     gret
 

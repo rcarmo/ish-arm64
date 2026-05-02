@@ -157,10 +157,10 @@ segfault_\type\()_\id :
         mov w9, #1
         strb w9, [_cpu, #CPU_segfault_was_write]
     .endif
-    // Store current block's guest address as PC for better crash reporting
-    // _pc points to current position in code stream
-    // Block header (fiber_block) is at _pc - FIBER_BLOCK_code (approximately)
-    // But _pc varies, so store LOCAL_value with _pc for debugging
+    // Retry the faulting guest memory instruction, not the containing block
+    // start. Earlier gadgets in the block may already have mutated registers.
+    ldr x8, [_cpu, #LOCAL_jit_saved_pc]
+    str x8, [_cpu, #CPU_pc]
     str _pc, [_cpu, #LOCAL_value]
     mov w0, #INT_GPF
     b fiber_exit

@@ -363,9 +363,11 @@ static int cpu_step_to_interrupt(struct cpu_state *cpu, struct tlb *tlb) {
 
         TRACE("%d %08x --- cycle %ld\n", current_pid(), ip, frame->cpu.cycle);
 
-        // Save block start PC to thread-local for crash recovery.
-        // The signal handler reads this to restore cpu->pc on SIGSEGV.
+        // Save a fallback block-start PC for crash recovery. Memory gadgets
+        // update frame->jit_saved_pc to the precise faultable instruction so
+        // host SIGSEGV/SIGBUS recovery does not re-run earlier side effects.
         jit_saved_pc = frame->cpu.pc;
+        frame->jit_saved_pc = frame->cpu.pc;
 
         in_jit = 1;
         interrupt = fiber_enter(block, frame, tlb);
@@ -460,12 +462,16 @@ int cpu_run_to_interrupt(struct cpu_state *cpu, struct tlb *tlb) {
     if (!list_empty(&asbestos->jetsam)) {
         unlock(&asbestos->lock);
 
-        // Write lock ensures all JIT threads have exited (they hold read lock).
-        write_wrlock(&asbestos->jetsam_lock);
-        lock(&asbestos->lock);
-        fiber_free_jetsam(asbestos);
-        unlock(&asbestos->lock);
-        write_wrunlock(&asbestos->jetsam_lock);
+        // This runs while task_run_current still holds mem->lock for reading.
+        // Do not block here: a concurrent page-fault handler may be queued for
+        // mem->lock write, which makes new/read re-entry block on glibc's
+        // writer-preferred rwlock and can deadlock with JIT fault retry.
+        if (write_wrtrylock(&asbestos->jetsam_lock)) {
+            lock(&asbestos->lock);
+            fiber_free_jetsam(asbestos);
+            unlock(&asbestos->lock);
+            write_wrunlock(&asbestos->jetsam_lock);
+        }
     } else {
         unlock(&asbestos->lock);
     }

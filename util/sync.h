@@ -138,6 +138,14 @@ static inline void read_wrlock(wrlock_t *lock) {
     assert(lock->val >= 0);
     lock->val++;
 }
+static inline bool read_wrtrylock(wrlock_t *lock) {
+    int err = pthread_rwlock_tryrdlock(&lock->l);
+    if (err == EBUSY || err == EAGAIN) return false;
+    if (err != 0) __builtin_trap();
+    assert(lock->val >= 0);
+    lock->val++;
+    return true;
+}
 static inline void read_wrunlock(wrlock_t *lock) {
     assert(lock->val > 0);
     lock->val--;
