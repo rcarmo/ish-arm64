@@ -292,12 +292,15 @@ to debug, not as cases to skip.
 
 Current Linux-host status from this pass:
 
-- Latest staged run: **16 / 20 passing**.
+- Latest staged run: **18 / 20 passing** (`/workspace/tmp/ish-arm64-runtime-coverage-20260502-154312.md`, `TIMEOUT_S=120`, `INSTALL_TIMEOUT_S=300`).
 - C coverage is green: `gcc --version`, compile, and execute all pass.
 - Go coverage is green: `go version`, `go env`, `go tool compile`, `go run`,
   `go build` + execute, and `go test` all pass.
 - Node/npm coverage is green: `node --version`, `node -e`, `npm --version`, and
   `npm run` pass without the previous noisy `pwritev` stubs.
+- Bun coverage is now partially green: `bun --version`, local `file:` dependency
+  install, and `bun build` pass. The local `file:` install allocator/free-list
+  crash has been regression-tested with 50 consecutive `RC:0` runs.
 - Fixed lazy `MAP_NORESERVE` reservation permissions: `mprotect()` now updates
   reservation metadata, so later demand faults materialize pages with the new
   permissions. This fixed the Node/V8 `0xb00c0000` write fault.
@@ -321,18 +324,29 @@ Current Linux-host status from this pass:
   Because normal AArch64 code can keep 64-bit tagged/masked values in GP
   registers, the per-instruction high-bit tracer is opt-in via
   `ISH_TRACE_HIGHBITS=1` instead of enabled for every runtime run.
-- Current blockers under the staged suite are Bun-specific runtime failures:
-  - `bun install`, TypeScript run, `bun test`, and `bun build` still fail;
-  - current signatures are allocator/free-list faults around the Bun binary's
-    fast allocation path (`0x4899afc`/`0x4899b00`) plus a remaining `0x19` read
-    in one build path.
+- Fixed the Bun/JSC freelist corruption by making ARM64 JIT memory-fault retry
+  precise. Faultable load/store instructions now record the current guest PC in
+  `fiber_frame::jit_saved_pc`; async host SIGSEGV/SIGBUS recovery and
+  TLB/cross-page `INT_GPF` exits retry at that instruction instead of the block
+  start. This prevents a fault at `4897440: str x10, [x11]` from restarting at
+  `4897430: madd x11, x1, x11, x1` after `x11` has been repurposed as the
+  freelist loop pointer.
+- Current blockers under the staged suite are Bun-specific script execution
+  failures:
+  - `bun run index.ts` still times out or exits without producing the expected
+    `bun-localdep-ok` output;
+  - `bun test` starts and prints `sum.test.ts:` but does not complete;
+  - a plain `bun -e "console.log(1)"` also hangs, so the active target has moved
+    from install allocator corruption to Bun/JSC execution, thread wakeup, or
+    event-loop completion behavior.
 
 Immediate plan:
 
 1. keep the Makefile target as the single command for coverage regressions;
-2. continue tracing the Bun allocator corruption through atomics/TLS/threading;
+2. trace the remaining Bun script execution hang (`bun -e`, TypeScript run, and
+   `bun test`) through futex/thread wakeups and event-loop exit paths;
 3. finish optional crypto/LSE helper validation before re-advertising those HWCAP bits;
-4. only expand coverage further after Bun install/run/test/build are green and
+4. only expand coverage further after Bun run/test/build are green and
    stderr-clean.
 
 ### Host ABI notes

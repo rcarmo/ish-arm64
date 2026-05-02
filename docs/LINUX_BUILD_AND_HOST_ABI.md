@@ -102,6 +102,66 @@ The helpers keep those differences localized.
 
 ---
 
+## ARM64 JIT memory-fault retry ABI
+
+Files:
+
+- `asbestos/frame.h`
+- `asbestos/guest-arm64/gen.c`
+- `asbestos/guest-arm64/gadgets-aarch64/entry.S`
+- `asbestos/guest-arm64/gadgets-aarch64/gadgets.h`
+- `main.c`
+
+The ARM64 backend now has an explicit per-frame retry-PC slot for faultable
+JIT memory instructions:
+
+- `fiber_frame::jit_saved_pc` stores the guest PC of the current load/store.
+- `gadget_set_jit_saved_pc` is emitted before ARM64 load/store gadgets.
+- async host `SIGSEGV`/`SIGBUS` recovery restores `cpu->pc` from that slot;
+  the older thread-local block-start PC remains only a fallback.
+- TLB miss and cross-page memory-fault exits that return `INT_GPF` also restore
+  `cpu->pc` from the same slot before leaving the fiber.
+
+This is required because a memory fault can happen after earlier gadgets in the
+same block have already changed guest registers. Retrying at the block start can
+re-run those side effects. The concrete failure this fixed was Bun/JSC's
+freelist fill loop: a fault at `4897440: str x10, [x11]` could restart at
+`4897430: madd x11, x1, x11, x1` after `4897438: mov x11, x8` had changed
+`x11` into the loop pointer, producing a bogus high freelist `next` pointer.
+
+Validation after the fix:
+
+- `make build-arm64-linux-all` passes.
+- 50 consecutive minimal Bun local `file:` install repro runs passed.
+- staged runtime coverage improved to **18 / 20 passing**; remaining failures
+  are Bun script execution/test hangs, not the previous install allocator crash.
+
+## Locking note exposed by precise retry
+
+Files:
+
+- `util/sync.h`
+- `kernel/memory.c`
+- `asbestos/asbestos.c`
+
+The Linux/glibc `pthread_rwlock` configuration is writer-preferred. During JIT
+page-fault handling, a thread can release a read lock to attempt a write-lock
+upgrade and then fail `trywrlock` because another thread is queued for write. If
+it immediately blocks in `rdlock`, it can prevent the queued writer from making
+progress and deadlock retry paths.
+
+The current rule is:
+
+- after a failed JIT write-lock upgrade, reacquire read permission with
+  try-read/yield rather than blocking behind a queued writer;
+- do not block on Asbestos jetsam cleanup while `task_run_current` is still
+  holding `mem->lock` for read.
+
+This keeps the precise retry path from turning allocator/page-fault contention
+into a host rwlock deadlock.
+
+---
+
 ## Current ABI shape
 
 The practical host-facing ABI is now:
@@ -120,10 +180,18 @@ The practical host-facing ABI is now:
 
 - localized helpers in `fs/fake.c`
 
+### JIT fault/retry ABI
+
+- `fiber_frame::jit_saved_pc`
+- `gadget_set_jit_saved_pc`
+- host signal recovery in `main.c`
+- TLB/cross-page fault exits in ARM64 memory gadgets
+
 This is not yet a full `host_*` layer, but it is a clear first split:
 
 - register/context access is no longer open-coded per host
 - fakefs no longer assumes Apple-only fd/path APIs
+- ARM64 JIT crash recovery no longer assumes block-start retry is safe for every memory fault
 
 ---
 

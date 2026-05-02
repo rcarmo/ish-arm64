@@ -39,6 +39,7 @@ The first tranche centralizes FD-path lookup, stat timestamp fields, host random
 ### Emulator/runtime fixes so far
 
 - Fixed stale threaded-code/TLB invalidation paths around mapping and exec transitions.
+- Made ARM64 JIT memory-fault retry precise: faultable load/store gadgets now record the current guest PC, and async SIGSEGV/SIGBUS plus TLB/cross-page INT_GPF exits retry at that instruction instead of the containing block start. This fixed the Bun/JSC freelist corruption where `4897440: str x10, [x11]` could restart at `4897430: madd x11, x1, x11, x1` with `x11` already clobbered to the loop pointer.
 - Added ARM64 syscall coverage and quiet fallback stubs for modern runtime probes such as `rseq` and `io_uring_*`.
 - Implemented ARM64 `preadv`/`pwritev` syscall wiring, removing noisy Node/npm fallback stubs.
 - Fixed lazy `MAP_NORESERVE` reservation permissions so later `mprotect()` calls update reservation metadata before demand faults materialize pages.
@@ -51,7 +52,7 @@ The first tranche centralizes FD-path lookup, stat timestamp fields, host random
 
 ## Current coverage status
 
-Latest staged runtime report: **16 / 20 passing**. C, Go, and Node/npm are green; Bun remains the red area.
+Latest staged runtime report: **18 / 20 passing** (`/workspace/tmp/ish-arm64-runtime-coverage-20260502-154312.md`, `TIMEOUT_S=120`). C, Go, Node/npm, and the first Bun install/build gates are green; remaining red cases are Bun TypeScript execution and `bun test`.
 
 | Area | Status | Notes |
 |---|---:|---|
@@ -59,15 +60,23 @@ Latest staged runtime report: **16 / 20 passing**. C, Go, and Node/npm are green
 | C toolchain | Passing | `gcc` can compile and execute a simple program. |
 | Go | Passing | `go version`, `go env`, `go tool compile`, `go run`, `go build`, and `go test` pass. |
 | Node/npm | Passing | `node -e`, `npm --version`, and `npm run` pass after mmap/reservation and `pwritev` fixes. |
-| Bun | Failing | Bun starts and reports its version, but install/run/test/build still hit allocator/runtime faults. |
+| Bun | Partially passing | `bun --version`, local `file:` dependency install, and `bun build` pass. `bun run index.ts` still times out/no-output, and `bun test` starts but stalls after printing `sum.test.ts:`. |
 
-## Bun install failure snapshot
+## Bun status snapshot
 
-The remaining red path is Bun. This screenshot shows the current failure mode when trying to install a local `file:` dependency inside the guest:
+The previous Bun local `file:` install allocator/free-list failure is fixed. The root cause was imprecise ARM64 JIT memory-fault retry: a fault in the freelist-fill store at `0x4897440` could restart the block at `0x4897430` after `x11` had already been repurposed as the loop pointer, producing a huge bogus `next` pointer. The current fix records a precise retry PC before each load/store and uses it for async host faults and TLB/cross-page memory-fault exits.
 
-![Bun install failing inside the ARM64 iSH guest](docs/images/bun-install-failure.png)
+Validated so far:
 
-The most common current signatures are faults in Bun/JSC allocation paths around `0x4899afc`, `0x4899b00`, and sometimes `0x489a190`, with corrupted high free-list pointers. CASP/128-bit atomic coverage is now green and large high arenas are available, so the next debugging target is the remaining Bun allocator/TLS/threading behavior and optional crypto/LSE helper coverage.
+- `make build-arm64-linux-all` passes.
+- 50 consecutive minimal Bun local `file:` install repro runs passed (`RC:0`).
+- Staged coverage now passes Bun `version`, `install local dep`, and `build`.
+
+Remaining Bun work:
+
+- `bun run index.ts` still hangs or produces no output under the staged harness.
+- `bun test` starts and prints `sum.test.ts:` but does not complete.
+- A plain `bun -e "console.log(1)"` also hangs, so the next target is Bun/JSC script execution/event-loop/thread wakeup behavior rather than the install allocator path.
 
 ## Quick start
 
@@ -76,4 +85,4 @@ make build-arm64-linux-all
 make test-arm64-runtime-coverage REPORT_DIR=/workspace/tmp TIMEOUT_S=90 INSTALL_TIMEOUT_S=900
 ```
 
-The coverage suite is intentionally still red while Bun is being brought up. Treat failures as emulator/runtime bugs to fix, not cases to skip.
+The coverage suite is intentionally still red while the remaining Bun run/test cases are being brought up. Treat failures as emulator/runtime bugs to fix, not cases to skip.

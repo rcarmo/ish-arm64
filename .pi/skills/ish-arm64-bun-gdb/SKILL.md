@@ -183,7 +183,7 @@ The fix was to make ARM64 JIT memory-fault retry precise without changing normal
 - On TLB miss/cross-page memory fault paths that return `INT_GPF`, also restore `cpu->pc` from `LOCAL_jit_saved_pc` before `fiber_exit`.
 - Avoid the retry path deadlocking on writer-preferred rwlocks by using try-read reacquire after failed JIT lock upgrades and by not blocking on jetsam cleanup while still holding `mem->lock` for reading.
 
-This makes the fault at `4897440: str x10, [x11]` retry at `4897440`, preserving the already-computed `x10/x11`, instead of restarting at `4897430` and re-running `madd` with `x11` holding the loop pointer. Validation: `make build-arm64-linux-all` and 50 consecutive Bun local `file:` install repro runs passed (`RC:0`).
+This makes the fault at `4897440: str x10, [x11]` retry at `4897440`, preserving the already-computed `x10/x11`, instead of restarting at `4897430` and re-running `madd` with `x11` holding the loop pointer. Validation: `make build-arm64-linux-all`, 50 consecutive Bun local `file:` install repro runs passed (`RC:0`), and staged runtime coverage improved to 18/20 passing. Remaining Bun failures are script execution/test hangs: `bun run index.ts` times out/no-output, `bun test` prints `sum.test.ts:` then stalls, and plain `bun -e "console.log(1)"` hangs. Next target: Bun/JSC event-loop, futex/thread wakeups, or process-exit completion rather than the install allocator path.
 
 ## Useful GDB breakpoints
 
