@@ -27,6 +27,8 @@ extern __thread volatile uint64_t jit_last_x10;
 extern __thread volatile int jit_crash_count;
 extern volatile bool g_trace_highbits;
 
+int fakefs_bind_mount(const char *linux_path, const char *host_path, bool read_only);
+
 // Assembly trampoline: returns INT_JIT_CRASH via fiber_exit (defined in entry.S)
 extern void jit_crash_trampoline(void);
 
@@ -129,6 +131,65 @@ void restore_termios(void) {
         tcsetattr(STDIN_FILENO, TCSANOW, &saved_termios);
 }
 
+static char *trim_ascii_space(char *s) {
+    while (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r')
+        s++;
+    char *end = s + strlen(s);
+    while (end > s && (end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\n' || end[-1] == '\r'))
+        *--end = '\0';
+    return s;
+}
+
+static void apply_env_bind_mounts(void) {
+    const char *spec = getenv("ISH_BIND_MOUNTS");
+    if (spec == NULL || spec[0] == '\0')
+        return;
+
+    char *copy = strdup(spec);
+    if (copy == NULL) {
+        fprintf(stderr, "ISH_BIND_MOUNTS: out of memory\n");
+        return;
+    }
+
+    char *saveptr = NULL;
+    for (char *entry = strtok_r(copy, ",", &saveptr); entry != NULL; entry = strtok_r(NULL, ",", &saveptr)) {
+        entry = trim_ascii_space(entry);
+        if (entry[0] == '\0')
+            continue;
+
+        char *eq = strchr(entry, '=');
+        if (eq == NULL) {
+            fprintf(stderr, "ISH_BIND_MOUNTS: skipping entry without '=': %s\n", entry);
+            continue;
+        }
+        *eq = '\0';
+        char *linux_path = trim_ascii_space(entry);
+        char *host_path = trim_ascii_space(eq + 1);
+        bool read_only = false;
+
+        size_t host_len = strlen(host_path);
+        if (host_len > 3 && strcmp(host_path + host_len - 3, ":ro") == 0) {
+            host_path[host_len - 3] = '\0';
+            read_only = true;
+        } else if (host_len > 3 && strcmp(host_path + host_len - 3, ":rw") == 0) {
+            host_path[host_len - 3] = '\0';
+        }
+        host_path = trim_ascii_space(host_path);
+
+        if (linux_path[0] != '/' || host_path[0] != '/') {
+            fprintf(stderr, "ISH_BIND_MOUNTS: paths must be absolute: %s=%s\n", linux_path, host_path);
+            continue;
+        }
+
+        int err = fakefs_bind_mount(linux_path, host_path, read_only);
+        if (err < 0)
+            fprintf(stderr, "ISH_BIND_MOUNTS: failed to bind %s=%s%s: %s\n",
+                    linux_path, host_path, read_only ? ":ro" : ":rw", strerror(-err));
+    }
+
+    free(copy);
+}
+
 int main(int argc, char *const argv[]) {
     // Save host terminal settings so we can restore on exit
     if (isatty(STDIN_FILENO)) {
@@ -175,5 +236,6 @@ int main(int argc, char *const argv[]) {
     }
     do_mount(&procfs, "proc", "/proc", "", 0);
     do_mount(&devptsfs, "devpts", "/dev/pts", "", 0);
+    apply_env_bind_mounts();
     task_run_current();
 }
