@@ -166,7 +166,17 @@ Expected source at this point is the 16-bit count loaded by:
 
 Follow-up GDB showed `gadget_load16_imm_fast` itself can be fragile on TLB read misses if it keeps the precomputed `CPU_x0` pointer in caller-saved `x11` across `read_prep`: the miss path calls C and can clobber `x11`. Recompute `add x11, _cpu, #CPU_x0` after `read_prep` in fast fused load gadgets before writing the destination register. This is a real correctness fix but was **not sufficient** to make Bun pass.
 
-After that fix, `ldrh w11, [x0,#18]` was observed setting guest `x11=0` for the bad size class, then `x11` later became the loop pointer (`mov x11, x8` inside the freelist-fill loop). The remaining bug appears to be that execution can re-enter/restart the `4897430` block (`madd x11, x1, x11, x1`) with `x11` still holding that loop pointer, causing a huge multiply. Next target: trace who sets `CPU_pc`/block entry back to `4897430` after the loop has already clobbered `x11`.
+After that fix, `ldrh w11, [x0,#18]` was observed setting guest `x11=0` for the bad size class, then `x11` later became the loop pointer (`mov x11, x8` inside the freelist-fill loop). A hardware watchpoint on the guest `x11` slot showed the corrupt sequence precisely:
+
+```text
+0      -> 0x60              madd x11, x1, x11, x1   (first correct entry)
+0x60   -> heap_base         mov  x11, x8
+heap_base -> huge_bad_next  madd x11, x1, x11, x1   (bad re-entry/restart)
+huge_bad_next -> heap_base  mov  x11, x8
+heap_base += 0x60 ...       loop increments
+```
+
+So the remaining bug is that execution can re-enter/restart the `4897430` block (`madd x11, x1, x11, x1`) with `x11` still holding the loop pointer from `4897438`, causing a huge multiply. Attempts to avoid this by globally splitting load/store blocks or setting `cpu->pc` around all load/store instructions made Bun hang often and were reverted. Next target: identify the exact retry/re-entry mechanism for `4897430` without broad block splitting.
 
 ## Useful GDB breakpoints
 
