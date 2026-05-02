@@ -500,6 +500,7 @@ extern void gadget_frintm_vec_vec(void);   // FRINTM (round toward -inf)
 extern void gadget_frintx_vec_vec(void);   // FRINTX (round to integral, exact)
 extern void gadget_frintz_vec_vec(void);   // FRINTZ (round toward zero)
 extern void gadget_frinti_vec_vec(void);   // FRINTI (round using FPCR rounding mode)
+extern void gadget_fcvtl_vec(void);        // FCVTL/FCVTL2 (widen FP conversion)
 // Vector FP compare-with-zero
 extern void gadget_fcmeq_zero_vec(void);   // FCMEQ Vd, Vn, #0.0
 extern void gadget_fcmge_zero_vec(void);   // FCMGE Vd, Vn, #0.0
@@ -5073,6 +5074,20 @@ skip_three_different:
             gen(state, rd | (rn << 8) | (sz << 16) | (Q << 24));
             return 1;
         }
+    }
+
+    // FCVTL/FCVTL2 - floating-point widen long (two-register misc)
+    // FCVTL:  0 0 0 01110 size 10000 10111 10 Rn Rd
+    // FCVTL2: 0 1 0 01110 size 10000 10111 10 Rn Rd
+    // size=0: H->S, size=1: S->D; size[1] must be 0.
+    if ((insn & 0xbf3ffc00) == 0x0e217800) {
+        uint32_t Q = (insn >> 30) & 1;
+        uint32_t size = (insn >> 22) & 0x1;
+        uint32_t rn = (insn >> 5) & 0x1f;
+        uint32_t rd = insn & 0x1f;
+        gen(state, (unsigned long) gadget_fcvtl_vec);
+        gen(state, rd | (rn << 8) | (size << 16) | (Q << 24));
+        return 1;
     }
 
     // Integer CMEQ #0 (U=0, opcode=0x09)

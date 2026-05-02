@@ -5967,6 +5967,46 @@ make_fp_vec_two_reg_misc frintz_vec, frintz
 make_fp_vec_two_reg_misc frinti_vec, frinti
 
 /*
+ * FCVTL/FCVTL2 - floating-point widening conversion.
+ * Code stream: [gadget addr][rd | rn<<8 | size<<16 | Q<<24]
+ * size: 0 = half->single, 1 = single->double
+ * Q: 0 = FCVTL (lower half), 1 = FCVTL2 (upper half)
+ */
+.gadget fcvtl_vec
+    ldr x8, [_pc]
+    add _pc, _pc, #8
+    and x9, x8, #0x1f       // rd
+    ubfx x10, x8, #8, #5    // rn
+    ubfx x11, x8, #16, #1   // size
+    ubfx x17, x8, #24, #1   // Q / upper half
+
+    add x13, _cpu, #CPU_fp
+    lsl x14, x9, #4
+    add x14, x13, x14       // &Vd
+    lsl x15, x10, #4
+    add x15, x13, x15       // &Vn
+    ldr q0, [x15]
+
+    cbnz x11, .Lfcvtl_s_to_d
+    cbnz x17, .Lfcvtl2_h_to_s
+    fcvtl v0.4s, v0.4h
+    str q0, [x14]
+    gret
+.Lfcvtl2_h_to_s:
+    fcvtl2 v0.4s, v0.8h
+    str q0, [x14]
+    gret
+.Lfcvtl_s_to_d:
+    cbnz x17, .Lfcvtl2_s_to_d
+    fcvtl v0.2d, v0.2s
+    str q0, [x14]
+    gret
+.Lfcvtl2_s_to_d:
+    fcvtl2 v0.2d, v0.4s
+    str q0, [x14]
+    gret
+
+/*
  * Vector FP compare-with-zero instructions
  * Code stream: [gadget addr][rd | rn<<8 | sz<<16 | Q<<24]
  */

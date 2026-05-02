@@ -292,7 +292,7 @@ to debug, not as cases to skip.
 
 Current Linux-host status from this pass:
 
-- Latest staged run: **20 / 20 passing** (`/workspace/tmp/ish-arm64-runtime-coverage-20260502-201021.md`, `TIMEOUT_S=120`, `INSTALL_TIMEOUT_S=300`).
+- Latest staged run: **20 / 20 passing** (`/workspace/tmp/ish-arm64-runtime-coverage-20260502-223437.md`, `TIMEOUT_S=120`, `INSTALL_TIMEOUT_S=300`).
 - C coverage is green: `gcc --version`, compile, and execute all pass.
 - Go coverage is green: `go version`, `go env`, `go tool compile`, `go run`,
   `go build` + execute, and `go test` all pass.

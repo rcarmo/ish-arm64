@@ -55,7 +55,7 @@ The first tranche centralizes FD-path lookup, stat timestamp fields, host random
 
 ## Current coverage status
 
-Latest staged runtime report: **20 / 20 passing** (`/workspace/tmp/ish-arm64-runtime-coverage-20260502-201021.md`, `TIMEOUT_S=120`, `INSTALL_TIMEOUT_S=300`). Base shell/APK, C, Go, Bun, and Node/npm are green in the Linux-host coverage harness.
+Latest staged runtime report: **20 / 20 passing** (`/workspace/tmp/ish-arm64-runtime-coverage-20260502-223437.md`, `TIMEOUT_S=120`, `INSTALL_TIMEOUT_S=300`). Base shell/APK, C, Go, Bun, and Node/npm are green in the Linux-host coverage harness.
 
 | Area | Status | Notes |
 |---|---:|---|
@@ -82,7 +82,7 @@ Validated so far:
 
 ## go-gte workload probe
 
-`rcarmo/go-gte` now installs far enough inside the ARM64 guest to clone, install Python dependencies, build the Go CLI/bench/jitter commands, load a host-converted `gte-small.gtemodel`, and produce embeddings/benchmarks. The probe also exposed two remaining emulator gaps: missing AdvSIMD `FCVTL` support during in-guest model conversion and incorrect results in go-gte's ARM64 NEON SGEMM tests. Details and repro notes are in [docs/GO_GTE_PROGRESS.md](docs/GO_GTE_PROGRESS.md).
+`rcarmo/go-gte` now installs far enough inside the ARM64 guest to clone, install Python dependencies, build the Go CLI/bench/jitter commands, convert `gte-small.gtemodel` in guest, and produce embeddings/benchmarks. The probe exposed and fixed missing AdvSIMD `FCVTL` support during in-guest model conversion; `make run-go` now completes in guest. The remaining low-level direct `SgemmNT` failures appear isolated from go-gte's high-level ARM64 GEBP path and are tracked in the progress note. Details and repro notes are in [docs/GO_GTE_PROGRESS.md](docs/GO_GTE_PROGRESS.md).
 
 ## Quick start
 
