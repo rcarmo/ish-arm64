@@ -1000,7 +1000,7 @@ int_t sys_rt_sigtimedwait(addr_t set_addr, addr_t info_addr, addr_t timeout_addr
     return info.sig;
 }
 
-static int kill_task(struct task *task, dword_t sig) {
+static int kill_task(struct task *task, dword_t sig, int code) {
     if (!superuser() &&
             current->uid != task->uid &&
             current->uid != task->suid &&
@@ -1008,7 +1008,7 @@ static int kill_task(struct task *task, dword_t sig) {
             current->euid != task->suid)
         return _EPERM;
     struct siginfo_ info = {
-        .code = SI_USER_,
+        .code = code,
         .kill.pid = current->pid,
         .kill.uid = current->uid,
     };
@@ -1016,7 +1016,7 @@ static int kill_task(struct task *task, dword_t sig) {
     return 0;
 }
 
-static int kill_group(pid_t_ pgid, dword_t sig) {
+static int kill_group(pid_t_ pgid, dword_t sig, int code) {
     struct pid *pid = pid_get(pgid);
     if (pid == NULL) {
         unlock(&pids_lock);
@@ -1025,7 +1025,7 @@ static int kill_group(pid_t_ pgid, dword_t sig) {
     struct tgroup *tgroup;
     int err = _EPERM;
     list_for_each_entry(&pid->pgroup, tgroup, pgroup) {
-        int kill_err = kill_task(tgroup->leader, sig);
+        int kill_err = kill_task(tgroup->leader, sig, code);
         // killing a group should return an error only if no process can be signaled
         if (err == _EPERM)
             err = kill_err;
@@ -1033,20 +1033,20 @@ static int kill_group(pid_t_ pgid, dword_t sig) {
     return err;
 }
 
-static int kill_everything(dword_t sig) {
+static int kill_everything(dword_t sig, int code) {
     int err = _EPERM;
     for (int i = 2; i < MAX_PID; i++) {
         struct task *task = pid_get_task(i);
         if (task == NULL || task == current || !task_is_leader(task))
             continue;
-        int kill_err = kill_task(task, sig);
+        int kill_err = kill_task(task, sig, code);
         if (err == _EPERM)
             err = kill_err;
     }
     return err;
 }
 
-static int do_kill(pid_t_ pid, dword_t sig, pid_t_ tgid) {
+static int do_kill(pid_t_ pid, dword_t sig, pid_t_ tgid, int code) {
     STRACE("kill(%d, %d)", pid, sig);
     if (sig >= NUM_SIGS)
         return _EINVAL;
@@ -1057,9 +1057,9 @@ static int do_kill(pid_t_ pid, dword_t sig, pid_t_ tgid) {
     lock(&pids_lock);
 
     if (pid == -1) {
-        err = kill_everything(sig);
+        err = kill_everything(sig, code);
     } else if (pid < 0) {
-        err = kill_group(-pid, sig);
+        err = kill_group(-pid, sig, code);
     } else {
         struct task *task = pid_get_task(pid);
         if (task == NULL) {
@@ -1073,7 +1073,7 @@ static int do_kill(pid_t_ pid, dword_t sig, pid_t_ tgid) {
             return _ESRCH;
         }
 
-        err = kill_task(task, sig);
+        err = kill_task(task, sig, code);
     }
 
     unlock(&pids_lock);
@@ -1081,15 +1081,15 @@ static int do_kill(pid_t_ pid, dword_t sig, pid_t_ tgid) {
 }
 
 dword_t sys_kill(pid_t_ pid, dword_t sig) {
-    return do_kill(pid, sig, 0);
+    return do_kill(pid, sig, 0, SI_USER_);
 }
 dword_t sys_tgkill(pid_t_ tgid, pid_t_ tid, dword_t sig) {
     if (tid <= 0 || tgid <= 0)
         return _EINVAL;
-    return do_kill(tid, sig, tgid);
+    return do_kill(tid, sig, tgid, SI_TKILL_);
 }
 dword_t sys_tkill(pid_t_ tid, dword_t sig) {
     if (tid <= 0)
         return _EINVAL;
-    return do_kill(tid, sig, 0);
+    return do_kill(tid, sig, 0, SI_TKILL_);
 }

@@ -839,6 +839,13 @@ dword_t sys_execve(addr_t filename_addr, addr_t argv_addr, addr_t envp_addr) {
         // page table modifications. GOMAXPROCS=2 is sufficient for most Go CLI
         // tools and eliminates nearly all multi-thread race conditions.
         { "GOMAXPROCS=2", 11, 0 },             // Limit Go thread count
+        // JavaScriptCore's parallel GC suspends marker threads with a signal and
+        // waits for each thread to acknowledge from a stack-range-sensitive
+        // handler. iSH delivers guest signals at syscall/gadget boundaries, so
+        // marker suspension can spin forever when a target thread is parked in a
+        // futex outside the JSC stack. One marker avoids that suspend handshake
+        // while keeping GC enabled; this is much narrower than JSC_disableGC.
+        { "JSC_numberOfGCMarkers=1", 22, 0 },  // Avoid multi-marker GC suspend hangs
     };
     for (size_t vi = 0; vi < sizeof(inject_envs)/sizeof(inject_envs[0]); vi++) {
         char *e = envp;

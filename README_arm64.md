@@ -292,15 +292,17 @@ to debug, not as cases to skip.
 
 Current Linux-host status from this pass:
 
-- Latest staged run: **18 / 20 passing** (`/workspace/tmp/ish-arm64-runtime-coverage-20260502-154312.md`, `TIMEOUT_S=120`, `INSTALL_TIMEOUT_S=300`).
+- Latest staged run: **20 / 20 passing** (`/workspace/tmp/ish-arm64-runtime-coverage-20260502-160741.md`, `TIMEOUT_S=120`, `INSTALL_TIMEOUT_S=300`).
 - C coverage is green: `gcc --version`, compile, and execute all pass.
 - Go coverage is green: `go version`, `go env`, `go tool compile`, `go run`,
   `go build` + execute, and `go test` all pass.
+- Bun coverage is green: `bun --version`, local `file:` dependency install,
+  TypeScript run, `bun test`, and `bun build` all pass. The local `file:`
+  install allocator/free-list crash has been regression-tested with 50
+  consecutive `RC:0` runs, and `bun -e "console.log(1)"` passed 20 consecutive
+  repro runs after the GC marker shim.
 - Node/npm coverage is green: `node --version`, `node -e`, `npm --version`, and
   `npm run` pass without the previous noisy `pwritev` stubs.
-- Bun coverage is now partially green: `bun --version`, local `file:` dependency
-  install, and `bun build` pass. The local `file:` install allocator/free-list
-  crash has been regression-tested with 50 consecutive `RC:0` runs.
 - Fixed lazy `MAP_NORESERVE` reservation permissions: `mprotect()` now updates
   reservation metadata, so later demand faults materialize pages with the new
   permissions. This fixed the Node/V8 `0xb00c0000` write fault.
@@ -331,23 +333,24 @@ Current Linux-host status from this pass:
   start. This prevents a fault at `4897440: str x10, [x11]` from restarting at
   `4897430: madd x11, x1, x11, x1` after `x11` has been repurposed as the
   freelist loop pointer.
-- Current blockers under the staged suite are Bun-specific script execution
-  failures:
-  - `bun run index.ts` still times out or exits without producing the expected
-    `bun-localdep-ok` output;
-  - `bun test` starts and prints `sum.test.ts:` but does not complete;
-  - a plain `bun -e "console.log(1)"` also hangs, so the active target has moved
-    from install allocator corruption to Bun/JSC execution, thread wakeup, or
-    event-loop completion behavior.
+- Fixed the follow-on Bun script execution hang with a conservative JavaScriptCore
+  marker-count shim: `JSC_numberOfGCMarkers=1` is injected for ARM64 guest
+  processes. The hang was JSC's parallel GC signal-suspend handshake spinning on
+  marker threads parked in futex/syscall context; one marker keeps GC enabled
+  while avoiding that multi-marker suspend path.
+- Tightened ARM64 signal ABI details found during the same trace: `siginfo_t` now
+  includes the 64-bit Linux padding before `_sifields`, `tkill`/`tgkill` deliver
+  `SI_TKILL`, and syscall 240 (`rt_tgsigqueueinfo`) is no longer accidentally
+  wired to `rt_sigreturn`.
 
 Immediate plan:
 
 1. keep the Makefile target as the single command for coverage regressions;
-2. trace the remaining Bun script execution hang (`bun -e`, TypeScript run, and
-   `bun test`) through futex/thread wakeups and event-loop exit paths;
+2. run longer Bun/npm workloads to find the next post-coverage failure instead
+   of expanding the suite blindly;
 3. finish optional crypto/LSE helper validation before re-advertising those HWCAP bits;
-4. only expand coverage further after Bun run/test/build are green and
-   stderr-clean.
+4. revisit JSC parallel GC marker suspension if/when we need to remove the
+   `JSC_numberOfGCMarkers=1` compatibility shim.
 
 ### Host ABI notes
 

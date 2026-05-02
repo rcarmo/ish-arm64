@@ -75,6 +75,12 @@ struct siginfo_ {
     int_t sig;
     int_t sig_errno;
     int_t code;
+#if defined(GUEST_ARM64)
+    // 64-bit Linux aligns the _sifields union to 8 bytes, so si_pid/si_uid
+    // start at offset 16, not offset 12. Signal handlers in runtimes such as
+    // JavaScriptCore inspect these fields for thread-directed signals.
+    int_t _pad0;
+#endif
     union {
         struct {
             pid_t_ pid;

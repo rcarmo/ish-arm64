@@ -133,8 +133,59 @@ Validation after the fix:
 
 - `make build-arm64-linux-all` passes.
 - 50 consecutive minimal Bun local `file:` install repro runs passed.
-- staged runtime coverage improved to **18 / 20 passing**; remaining failures
-  are Bun script execution/test hangs, not the previous install allocator crash.
+- staged runtime coverage initially improved to **18 / 20 passing**; after the
+  JavaScriptCore GC marker shim below it is **20 / 20 passing**.
+
+
+## JavaScriptCore GC marker compatibility shim
+
+File:
+
+- `kernel/exec.c`
+
+The ARM64 guest now injects:
+
+```text
+JSC_numberOfGCMarkers=1
+```
+
+unless the guest process already provided a `JSC_numberOfGCMarkers=` value. This
+keeps JavaScriptCore GC enabled but avoids the parallel marker thread suspension
+path that currently does not fit iSH's signal-delivery model.
+
+The observed hang was:
+
+- `bun -e "console.log(1)"`, `bun run index.ts`, and `bun test` stalled after
+  the allocator/freelist fix;
+- strace showed one JSC thread repeatedly using `tkill(..., SIGPWR)` to suspend
+  another marker thread;
+- the target thread repeatedly acknowledged enough to wake a semaphore, then
+  returned from the signal handler and re-entered `futex_wait`;
+- setting `JSC_numberOfGCMarkers=1` made `bun -e`, TypeScript run, `bun test`,
+  and `bun build` pass while preserving normal GC.
+
+This is a compatibility shim, not a final model for full parallel JSC GC. The
+underlying future cleanup is to make signal-delivered ucontexts and
+thread-suspension behavior close enough to native Linux that JSC's multi-marker
+handshake can run unmodified.
+
+## ARM64 signal ABI fixes from the JSC trace
+
+Files:
+
+- `kernel/signal.h`
+- `kernel/signal.c`
+- `kernel/arch/arm64/calls.c`
+
+The same trace exposed three signal ABI issues that are now fixed:
+
+- ARM64 `siginfo_t` now includes the 64-bit Linux padding word before the
+  `_sifields` union, so fields such as `si_pid` and `si_uid` are at the Linux
+  offsets expected by signal handlers.
+- `tkill` and `tgkill` now deliver `SI_TKILL` instead of plain `SI_USER`.
+- ARM64 syscall 240 (`rt_tgsigqueueinfo`) is no longer miswired to
+  `sys_rt_sigreturn`; unsupported use now follows the normal syscall-stub path
+  instead of corrupting CPU state.
 
 ## Locking note exposed by precise retry
 
@@ -169,6 +220,8 @@ The practical host-facing ABI is now:
 ### Signal/crash ABI
 
 - `platform/host_context_aarch64.h`
+- ARM64 `siginfo_t` layout and thread-directed signal codes in `kernel/signal.*`
+- ARM64 syscall-table signal entries in `kernel/arch/arm64/calls.c`
 
 ### Platform statistics ABI
 
@@ -187,11 +240,17 @@ The practical host-facing ABI is now:
 - host signal recovery in `main.c`
 - TLB/cross-page fault exits in ARM64 memory gadgets
 
+### Runtime compatibility shims
+
+- ARM64 exec-time environment injection in `kernel/exec.c`, currently including
+  `GODEBUG=asyncpreemptoff=1`, `GOMAXPROCS=2`, and `JSC_numberOfGCMarkers=1`
+
 This is not yet a full `host_*` layer, but it is a clear first split:
 
 - register/context access is no longer open-coded per host
 - fakefs no longer assumes Apple-only fd/path APIs
 - ARM64 JIT crash recovery no longer assumes block-start retry is safe for every memory fault
+- runtime-specific compatibility shims are documented where they cross signal/threading ABI boundaries
 
 ---
 
