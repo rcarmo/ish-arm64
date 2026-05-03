@@ -97,10 +97,8 @@ set -eu
 export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 cd /tmp/benchmarksgame-python-smoke
 mkdir -p out
-# Python multiprocessing.SemLock on musl expects a writable /dev/shm. Some
-# rootfs images do not ship it, so the smoke harness creates it explicitly.
-mkdir -p /dev/shm
-chmod 1777 /dev/shm
+# Python multiprocessing.SemLock on musl expects a writable /dev/shm.
+# iSH startup pre-creates it with mode 1777; this smoke row verifies that.
 ln -sf /proc/self/fd/0 /dev/stdin 2>/dev/null || true
 python3 - <<'PY' > input.fa
 print('>THREE')

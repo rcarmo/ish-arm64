@@ -190,10 +190,10 @@ Latest result:
 
 ```text
 10 / 10 passing
-report: /workspace/tmp/benchmarksgame-python-smoke-20260503-063748.md
+report: /workspace/tmp/benchmarksgame-python-smoke-20260503-072937.md
 ```
 
-Issue found while probing: Python `multiprocessing.SemLock` fails with `FileNotFoundError` when `/dev/shm` is absent from the fakefs root. Creating `/dev/shm` with mode `1777` fixes the row, so the Python harness now creates it explicitly. Treat this as a rootfs/init compatibility item; many Linux runtimes assume `/dev/shm` exists even when it is just a regular tmp-capable directory.
+Issue found and fixed: Python `multiprocessing.SemLock` fails with `FileNotFoundError` when `/dev/shm` is absent from the fakefs root. iSH startup now pre-creates `/dev/shm` with mode `1777`, and the Python row passes without creating it in the harness. Many Linux runtimes assume `/dev/shm` exists even when it is just a regular tmp-capable directory.
 
 
 ### Proposed harness shape

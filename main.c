@@ -10,6 +10,7 @@
 #include <stddef.h>
 #include "kernel/calls.h"
 #include "kernel/task.h"
+#include "fs/path.h"
 #include "emu/cpu.h"
 #include "emu/tlb.h"
 #include "asbestos/frame.h"
@@ -140,6 +141,20 @@ static char *trim_ascii_space(char *s) {
     return s;
 }
 
+static void ensure_guest_runtime_dirs(void) {
+    int err = generic_mkdirat(AT_PWD, "/dev", 0755);
+    if (err < 0 && err != _EEXIST)
+        fprintf(stderr, "init: failed to create /dev: %s\n", strerror(-err));
+
+    err = generic_mkdirat(AT_PWD, "/dev/shm", 01777);
+    if (err < 0 && err != _EEXIST)
+        fprintf(stderr, "init: failed to create /dev/shm: %s\n", strerror(-err));
+
+    err = generic_setattrat(AT_PWD, "/dev/shm", make_attr(mode, 01777), true);
+    if (err < 0)
+        fprintf(stderr, "init: failed to chmod /dev/shm: %s\n", strerror(-err));
+}
+
 static void apply_env_bind_mounts(void) {
     const char *spec = getenv("ISH_BIND_MOUNTS");
     if (spec == NULL || spec[0] == '\0')
@@ -236,6 +251,7 @@ int main(int argc, char *const argv[]) {
     }
     do_mount(&procfs, "proc", "/proc", "", 0);
     do_mount(&devptsfs, "devpts", "/dev/pts", "", 0);
+    ensure_guest_runtime_dirs();
     apply_env_bind_mounts();
     task_run_current();
 }

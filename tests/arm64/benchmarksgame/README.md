@@ -42,4 +42,4 @@ Run the Python benchmark row with:
 tests/arm64/benchmarksgame/run-python-smoke.sh
 ```
 
-Latest validated result: 10/10 passing. The runner creates `/dev/shm` in the guest because Python multiprocessing semaphores require it on musl-based Alpine.
+Latest validated result: 10/10 passing. The row verifies iSH startup pre-creates `/dev/shm` because Python multiprocessing semaphores require it on musl-based Alpine.
