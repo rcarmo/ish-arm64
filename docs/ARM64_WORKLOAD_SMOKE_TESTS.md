@@ -19,7 +19,7 @@ A workload belongs here when it exercises at least one of these boundaries:
 |---|---:|---|---|
 | Staged runtime coverage | Passing, 20/20 | Fast regression gate for shell, `apk`, tmp I/O, C, Go, Bun, Node/npm. Catches broad syscall/runtime regressions before heavier probes. | `/workspace/tmp/ish-arm64-runtime-coverage-20260502-223437.md` |
 | Bun + PiClaw bootstrap/server | Passing for install/start/web listen | Exercises modern JS runtime behavior: high `mmap` reservations, JSC GC signaling/timers, recursive package/workspace copies, sockets, HTTP serving, and PiClaw's startup probes. | `/workspace/tmp/piclaw-yolo-run-enotsup-fixed.log` and exposed server logs |
-| `rcarmo/go-gte` | Main app path passing; direct low-level `SgemmNT` tests still fail | Exercises Go toolchain, Python wheels, safetensors/numpy model conversion, 128 MB binary model I/O, FP16→FP32 AdvSIMD conversion, NEON math kernels, and Go runtime scheduling. | `docs/GO_GTE_PROGRESS.md` |
+| `rcarmo/go-gte` | Model conversion, `go test ./...`, and `make run-go` passing; `make go-build` still has upstream missing `cmd/test_gte` | Exercises Go toolchain, Python wheels, safetensors/numpy model conversion, 128 MB binary model I/O, FP16→FP32 AdvSIMD conversion, NEON math kernels, and Go runtime scheduling. | `docs/GO_GTE_PROGRESS.md` |
 | Benchmarks Game suite | Go row passing 10/10; source/language feasibility mapped | Broad cross-language benchmark corpus covering allocation, recursion, numeric FP, regex/text throughput, big integers, stdout/stdin streams, native compilers, managed runtimes, and package availability. | [BENCHMARKSGAME_MATRIX.md](BENCHMARKSGAME_MATRIX.md), [BENCHMARKSGAME_GO_SMOKE.md](BENCHMARKSGAME_GO_SMOKE.md) |
 
 ## Staged runtime coverage
@@ -93,9 +93,11 @@ Bug exposed and fixed:
 
 - Missing AdvSIMD `FCVTL`/`FCVTL2` support. `numpy`/safetensors conversion trapped on `fcvtl v30.4s, v31.4h`; the emulator now handles H→S and S→D widening conversions.
 
-Remaining issue:
+Patched upstream status:
 
-- `go test ./...` still fails in direct low-level `gte/simd` `SgemmNT` tests. Focused high-level ARM64 paths used by go-gte pass (`SgemmNN`, `SgemmNTGebp`, packing, `Sdot`, `Saxpy`). Inspection points at a likely go-gte Plan 9 assembly bug in the direct `SgemmNT` routine: it reduces into `F20` but later scales/stores `F0`. Keep this visible until upstream is fixed or an iSH counterexample is found.
+- go-gte `d908cdb` fixes the direct ARM64 `SgemmNT` test failures by completing the `F0`→`F20` rename. `GTE_MODEL_PATH=gte-small.gtemodel go test -count=1 ./...` now passes inside iSH.
+- `make run-go` passes.
+- `make go-build` still references missing `./cmd/test_gte`; this is a repository Makefile issue rather than an iSH failure.
 
 ## Benchmarks Game as the next test case
 

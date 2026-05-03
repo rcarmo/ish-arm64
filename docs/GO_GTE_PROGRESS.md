@@ -3,7 +3,7 @@
 See also: [ARM64 workload smoke tests](ARM64_WORKLOAD_SMOKE_TESTS.md), the central index for workload rationale and latest results.
 
 Date: 2026-05-02
-Updated: 2026-05-02 22:35 UTC
+Updated: 2026-05-03 05:58 UTC
 
 ## Goal
 
@@ -16,7 +16,9 @@ Install and run `https://github.com/rcarmo/go-gte` inside the ARM64 iSH Linux-ho
 - Rootfs: `alpine-arm64-fakefs`
 - Guest kernel banner: `Linux orangepi6plus 4.20.69-ish ... aarch64`
 - Guest Go: `go version go1.25.9 linux/arm64`
-- go-gte commit tested: `b76c36a`
+- go-gte commits tested:
+  - initial: `b76c36a`
+  - latest patched: `d908cdb` (`Fix ARM64 SgemmNT: complete F0→F20 rename in scalar tail + store`)
 - Conservative guest runtime env used for Go workloads:
   - `GOMAXPROCS=2`
   - `GODEBUG=asyncpreemptoff=1`
@@ -61,7 +63,15 @@ Guest-side model conversion now succeeds after adding AdvSIMD `FCVTL`/`FCVTL2` s
 
 ## Working result
 
-Guest-side model conversion now completes:
+After updating go-gte from `b76c36a` to `d908cdb`, the full Go package tests now pass inside ARM64 iSH:
+
+```text
+ok   github.com/rcarmo/gte-go/gte       0.205s
+ok   github.com/rcarmo/gte-go/gte/simd  4.162s
+GO_TEST_ALL_RC:0
+```
+
+Guest-side model conversion completes:
 
 ```sh
 python3 convert_model.py models/gte-small gte-small.gtemodel
@@ -88,9 +98,9 @@ Model loaded in 5.64 s
 Embedding dimension: 384
 Max sequence length: 512
 
-"I love cats"                  375.397 ms
-"I love dogs"                  373.794 ms
-"The stock market crashed"     385.561 ms
+"I love cats"                  381.542 ms
+"I love dogs"                  376.225 ms
+"The stock market crashed"     390.662 ms
 
 Cosine similarity matrix:
 S1/S2: 0.898
@@ -144,9 +154,9 @@ fcvtl v30.4s, v31.4h
 
 This is ARM64 AdvSIMD FP16-to-FP32 widening conversion. iSH now decodes and executes `FCVTL`/`FCVTL2` for H→S and S→D vector widening, and the conversion step succeeds in guest.
 
-### 3. Go ARM64 SIMD low-level `SgemmNT` tests still fail
+### 3. Go ARM64 SIMD low-level `SgemmNT` tests previously failed — fixed upstream
 
-`go test ./...` reaches package tests, but the optimized ARM64 SIMD package fails:
+At `b76c36a`, `go test ./...` reached package tests, but the optimized ARM64 SIMD package failed:
 
 ```text
 ok   github.com/rcarmo/gte-go/gte 0.175s
@@ -170,7 +180,19 @@ Representative failures:
     maxErr=2.6212463 > tol=0.001 (m=7 n=1152 k=384)
 ```
 
-Focused high-level ARM64 paths used by go-gte now pass (`SgemmNN`, `SgemmNTGebp`, packing, `Sdot`, `Saxpy`). The remaining failures are in the direct low-level `SgemmNT` Plan 9 assembly tests; inspection shows that routine horizontally reduces into `F20` but later stores/scales `F0`, so this may be a go-gte assembly bug rather than an iSH bug. Keep it in the smoke test until either upstream is fixed or an iSH counterexample is found.
+This was fixed upstream in go-gte `d908cdb` by completing the `F0`→`F20` rename in the ARM64 `SgemmNT` scalar tail/store path. After that update, `GTE_MODEL_PATH=gte-small.gtemodel go test -count=1 ./...` passes fully inside iSH.
+
+### 4. Remaining upstream Makefile issue
+
+`make run-go` passes, and `go test ./...` passes, but `make go-build` still references a command directory absent from the checkout:
+
+```text
+go build -trimpath ./cmd/gte ./cmd/test_gte ./cmd/bench
+stat /tmp/go-gte/cmd/test_gte: directory not found
+make: *** [Makefile:26: go-build] Error 1
+```
+
+That is a go-gte repository packaging/Makefile issue, not an iSH runtime failure.
 
 ## Logs
 
@@ -183,17 +205,15 @@ Focused high-level ARM64 paths used by go-gte now pass (`SgemmNN`, `SgemmNTGebp`
 - `/workspace/tmp/go-gte-convert-after-fcvtl.log`
 - `/workspace/tmp/go-gte-make-run-go-after-fcvtl.log`
 - `/workspace/tmp/go-gte-simd-focused.log`
+- `/workspace/tmp/go-gte-patched-full.log`
 
 ## Next steps
 
-1. Decide how to handle go-gte upstream issues for a truly one-command `make` path:
-   - Makefile references missing `./cmd/test_gte`;
-   - direct low-level `SgemmNT` appears to use the wrong FP accumulator after horizontal reduction.
+1. Fix or work around the remaining go-gte Makefile reference to missing `./cmd/test_gte` if the desired acceptance command is plain `make`/`make go-build`.
 2. Add a focused runtime test that runs the go-gte smoke path separately from the broad runtime-coverage gate:
-   - clone;
+   - clone/update to the selected go-gte commit;
    - install Python deps;
-   - build existing Go commands;
    - guest model conversion;
-   - `make run-go`;
-   - focused SIMD tests for `SgemmNN`, `SgemmNTGebp`, pack, `Sdot`, `Saxpy`.
-3. If upstream go-gte is patched, rerun `go test ./...` as the final all-green gate.
+   - `go test -count=1 ./...`;
+   - `make run-go`.
+3. Keep cgo/OpenBLAS/GMP variants as a separate stress lane because they exercise guest C toolchain process handling as well as Go.
