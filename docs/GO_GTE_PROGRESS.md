@@ -1,5 +1,7 @@
 # go-gte progress on ARM64 iSH
 
+See also: [ARM64 workload smoke tests](ARM64_WORKLOAD_SMOKE_TESTS.md), the central index for workload rationale and latest results.
+
 Date: 2026-05-02
 Updated: 2026-05-02 22:35 UTC
 

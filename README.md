@@ -80,9 +80,18 @@ Validated so far:
 - PiClaw workspace bootstrap no longer logs the `ENOTSUP ... copyfile` warning when seeding `.pi/skills`.
 - Staged runtime coverage is now **20 / 20 passing**, including Bun install, TypeScript run, test, and build.
 
-## go-gte workload probe
+## Workload smoke tests
 
-`rcarmo/go-gte` now installs far enough inside the ARM64 guest to clone, install Python dependencies, build the Go CLI/bench/jitter commands, convert `gte-small.gtemodel` in guest, and produce embeddings/benchmarks. The probe exposed and fixed missing AdvSIMD `FCVTL` support during in-guest model conversion; `make run-go` now completes in guest. The remaining low-level direct `SgemmNT` failures appear isolated from go-gte's high-level ARM64 GEBP path and are tracked in the progress note. Details and repro notes are in [docs/GO_GTE_PROGRESS.md](docs/GO_GTE_PROGRESS.md).
+The current non-trivial workload results are grouped in [docs/ARM64_WORKLOAD_SMOKE_TESTS.md](docs/ARM64_WORKLOAD_SMOKE_TESTS.md). That document explains why each workload was chosen, records the latest results, and tracks the next test case.
+
+Current highlights:
+
+- staged runtime coverage is **20 / 20 passing**;
+- Bun + PiClaw now install/start far enough to serve the web UI and no longer hit the recursive `copyfile`/`ENOTSUP` bootstrap issue;
+- `rcarmo/go-gte` can now build, convert `gte-small.gtemodel` inside the guest, and complete `make run-go`; this exposed and fixed missing AdvSIMD `FCVTL`/`FCVTL2` support;
+- the next broad workload is the Benchmarks Game corpus, with all official language labels accounted for and tiered by Alpine aarch64 feasibility.
+
+Detailed go-gte repro notes remain in [docs/GO_GTE_PROGRESS.md](docs/GO_GTE_PROGRESS.md).
 
 ## Quick start
 
