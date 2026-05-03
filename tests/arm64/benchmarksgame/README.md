@@ -43,3 +43,13 @@ tests/arm64/benchmarksgame/run-python-smoke.sh
 ```
 
 Latest validated result: 10/10 passing. The row verifies iSH startup pre-creates `/dev/shm` because Python multiprocessing semaphores require it on musl-based Alpine.
+
+## Node.js execution row
+
+Run the Node.js benchmark row with:
+
+```sh
+tests/arm64/benchmarksgame/run-node-smoke.sh
+```
+
+Latest validated result: 10/10 passing. The first row avoids `worker_threads` and external modules so we can add those as separate stress lanes.

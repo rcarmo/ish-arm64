@@ -20,7 +20,7 @@ A workload belongs here when it exercises at least one of these boundaries:
 | Staged runtime coverage | Passing, 20/20 | Fast regression gate for shell, `apk`, tmp I/O, C, Go, Bun, Node/npm. Catches broad syscall/runtime regressions before heavier probes. | `/workspace/tmp/ish-arm64-runtime-coverage-20260502-223437.md` |
 | Bun + PiClaw bootstrap/server | Passing for install/start/web listen | Exercises modern JS runtime behavior: high `mmap` reservations, JSC GC signaling/timers, recursive package/workspace copies, sockets, HTTP serving, and PiClaw's startup probes. | `/workspace/tmp/piclaw-yolo-run-enotsup-fixed.log` and exposed server logs |
 | `rcarmo/go-gte` | Model conversion, `go test ./...`, and `make run-go` passing; `make go-build` still has upstream missing `cmd/test_gte` | Exercises Go toolchain, Python wheels, safetensors/numpy model conversion, 128 MB binary model I/O, FP16→FP32 AdvSIMD conversion, NEON math kernels, and Go runtime scheduling. | `docs/GO_GTE_PROGRESS.md` |
-| Benchmarks Game suite | Go and Python rows passing 10/10; source/language feasibility mapped | Broad cross-language benchmark corpus covering allocation, recursion, numeric FP, regex/text throughput, big integers, stdout/stdin streams, native compilers, managed runtimes, and package availability. | [BENCHMARKSGAME_MATRIX.md](BENCHMARKSGAME_MATRIX.md), [BENCHMARKSGAME_GO_SMOKE.md](BENCHMARKSGAME_GO_SMOKE.md), [BENCHMARKSGAME_PYTHON_SMOKE.md](BENCHMARKSGAME_PYTHON_SMOKE.md) |
+| Benchmarks Game suite | Go, Python, and Node.js rows passing 10/10; source/language feasibility mapped | Broad cross-language benchmark corpus covering allocation, recursion, numeric FP, regex/text throughput, big integers, stdout/stdin streams, native compilers, managed runtimes, and package availability. | [BENCHMARKSGAME_MATRIX.md](BENCHMARKSGAME_MATRIX.md), [BENCHMARKSGAME_GO_SMOKE.md](BENCHMARKSGAME_GO_SMOKE.md), [BENCHMARKSGAME_PYTHON_SMOKE.md](BENCHMARKSGAME_PYTHON_SMOKE.md), [BENCHMARKSGAME_NODE_SMOKE.md](BENCHMARKSGAME_NODE_SMOKE.md) |
 
 ## Staged runtime coverage
 
@@ -106,7 +106,7 @@ Source site:
 - <https://benchmarksgame-team.pages.debian.net/benchmarksgame/>
 - Source repository: <https://salsa.debian.org/benchmarksgame-team/benchmarksgame>
 
-The current site advertises 10 active benchmark families and 26 language/runtime labels through the performance pages. The generated full matrix is in [BENCHMARKSGAME_MATRIX.md](BENCHMARKSGAME_MATRIX.md). Execution rows passing so far: Go across all 10 benchmark families ([BENCHMARKSGAME_GO_SMOKE.md](BENCHMARKSGAME_GO_SMOKE.md)) and Python across all 10 benchmark families ([BENCHMARKSGAME_PYTHON_SMOKE.md](BENCHMARKSGAME_PYTHON_SMOKE.md)):
+The current site advertises 10 active benchmark families and 26 language/runtime labels through the performance pages. The generated full matrix is in [BENCHMARKSGAME_MATRIX.md](BENCHMARKSGAME_MATRIX.md). Execution rows passing so far: Go ([BENCHMARKSGAME_GO_SMOKE.md](BENCHMARKSGAME_GO_SMOKE.md)), Python ([BENCHMARKSGAME_PYTHON_SMOKE.md](BENCHMARKSGAME_PYTHON_SMOKE.md)), and Node.js ([BENCHMARKSGAME_NODE_SMOKE.md](BENCHMARKSGAME_NODE_SMOKE.md)) across all 10 benchmark families:
 
 | Benchmark | Why it exercises iSH |
 |---|---|
@@ -195,6 +195,23 @@ report: /workspace/tmp/benchmarksgame-python-smoke-20260503-072937.md
 
 Issue found and fixed: Python `multiprocessing.SemLock` fails with `FileNotFoundError` when `/dev/shm` is absent from the fakefs root. iSH startup now pre-creates `/dev/shm` with mode `1777`, and the Python row passes without creating it in the harness. Many Linux runtimes assume `/dev/shm` exists even when it is just a regular tmp-capable directory.
 
+
+### Third execution row: Node.js
+
+Command:
+
+```sh
+tests/arm64/benchmarksgame/run-node-smoke.sh
+```
+
+Latest result:
+
+```text
+10 / 10 passing
+report: /workspace/tmp/benchmarksgame-node-smoke-20260503-073225.md
+```
+
+The first Node.js row intentionally avoids `worker_threads` and external modules such as `mpzjs`, keeping this lane single-process and dependency-free. The skipped worker-thread variants should become a separate scheduler/futex stress lane.
 
 ### Proposed harness shape
 
