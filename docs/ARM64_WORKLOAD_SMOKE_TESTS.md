@@ -104,7 +104,7 @@ Source site:
 - <https://benchmarksgame-team.pages.debian.net/benchmarksgame/>
 - Source repository: <https://salsa.debian.org/benchmarksgame-team/benchmarksgame>
 
-The current site advertises 10 active benchmark families and 26 language/runtime labels through the performance pages:
+The current site advertises 10 active benchmark families and 26 language/runtime labels through the performance pages. The generated full matrix is in [BENCHMARKSGAME_MATRIX.md](BENCHMARKSGAME_MATRIX.md):
 
 | Benchmark | Why it exercises iSH |
 |---|---|
@@ -121,6 +121,12 @@ The current site advertises 10 active benchmark families and 26 language/runtime
 
 ### Language/runtime feasibility on Alpine aarch64
 
+Canonical generated matrix: [BENCHMARKSGAME_MATRIX.md](BENCHMARKSGAME_MATRIX.md). Regenerate it with:
+
+```sh
+tests/arm64/benchmarksgame/generate-matrix.py
+```
+
 Official labels observed in the site pages and first-pass Alpine 3.23 aarch64 package feasibility:
 
 | Label | Guest feasibility | Notes |
@@ -132,7 +138,7 @@ Official labels observed in the site pages and first-pass Alpine 3.23 aarch64 pa
 | `rust` | ready-large | `rust`/`cargo` available; expect large install and compile times. |
 | `python3` | ready | Already validated. |
 | `node` | ready | `nodejs`/`npm` already validated. |
-| `php` | ready | `php` package family available. |
+| `php` | ready | `php84` package available. |
 | `perl` | ready | `perl` available. |
 | `ruby` | ready | `ruby` available. |
 | `lua` | ready | Use `lua5.4`. |
