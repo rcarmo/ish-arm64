@@ -33,3 +33,13 @@ tests/arm64/benchmarksgame/run-go-smoke.sh
 ```
 
 This fetches official Go source variants from the public Benchmarks Game pages, prefers self-contained variants for the first tier, pushes them into the guest, builds them with guest `go`, and records a Markdown report. Latest validated result: 10/10 passing.
+
+## Python execution row
+
+Run the Python benchmark row with:
+
+```sh
+tests/arm64/benchmarksgame/run-python-smoke.sh
+```
+
+Latest validated result: 10/10 passing. The runner creates `/dev/shm` in the guest because Python multiprocessing semaphores require it on musl-based Alpine.
