@@ -292,7 +292,7 @@ to debug, not as cases to skip.
 
 Current Linux-host status from this pass:
 
-- Latest staged run: **20 / 20 passing** (`/workspace/tmp/ish-arm64-runtime-coverage-20260502-223437.md`, `TIMEOUT_S=120`, `INSTALL_TIMEOUT_S=300`).
+- Latest staged run: **20 / 20 passing** (`/workspace/tmp/ish-arm64-runtime-coverage-20260503-141755.md`, `TIMEOUT_S=120`, `INSTALL_TIMEOUT_S=300`).
 - Non-trivial workload probes are grouped in [docs/ARM64_WORKLOAD_SMOKE_TESTS.md](docs/ARM64_WORKLOAD_SMOKE_TESTS.md): Bun/PiClaw, `rcarmo/go-gte`, and the Benchmarks Game next-test plan.
 - C coverage is green: `gcc --version`, compile, and execute all pass.
 - Go coverage is green: `go version`, `go env`, `go tool compile`, `go run`,

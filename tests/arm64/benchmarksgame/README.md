@@ -72,4 +72,4 @@ Run the Ruby benchmark row with:
 tests/arm64/benchmarksgame/run-ruby-smoke.sh
 ```
 
-Latest validated result: 10/10 passing. The first row avoids Thread/fork variants; those are reserved for a scheduler/futex stress lane.
+Latest validated result: 10/10 passing. This row includes Thread/fork variants after fixing a poll safety-valve false positive found by `regexredux-ruby-3`.

@@ -555,8 +555,11 @@ retry:
     current->blocking = true;
     {
         struct timespec waitpid_timeout = {.tv_sec = 1, .tv_nsec = 0};
-        if (wait_for(&current->group->child_exit, &pids_lock, &waitpid_timeout)) {
-            // Signal received during wait
+        int wait_err = wait_for(&current->group->child_exit, &pids_lock, &waitpid_timeout);
+        if (wait_err == _EINTR) {
+            // Signal received during wait. A timeout is expected here: wait4
+            // polls once per second to avoid host condvar stalls and must not
+            // be reported to the guest as EINTR.
             got_signal = true;
         }
     }

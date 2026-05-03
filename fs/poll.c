@@ -361,11 +361,14 @@ int poll_wait(struct poll *poll_, poll_callback_t callback, void *context, struc
                 if (idle_s >= 60) {
                     bool has_live_children = false;
                     int thread_count = 0;
+                    int nonblocking_threads = 0;
                     lock(&pids_lock);
                     lock(&current->group->lock);
                     struct task *t_iter;
                     list_for_each_entry(&current->group->threads, t_iter, group_links) {
                         thread_count++;
+                        if (!t_iter->blocking)
+                            nonblocking_threads++;
                         struct task *child;
                         list_for_each_entry(&t_iter->children, child, siblings) {
                             if (child->group != current->group && !child->zombie)
@@ -374,7 +377,7 @@ int poll_wait(struct poll *poll_, poll_callback_t callback, void *context, struc
                     }
                     unlock(&current->group->lock);
                     unlock(&pids_lock);
-                    if (!has_live_children) {
+                    if (!has_live_children && nonblocking_threads == 0) {
                         printk("SAFETY-VALVE[poll]: pid=%d idle %llds, %d threads → exit_group\n",
                                current->pid, (long long)idle_s, thread_count);
                         do_exit_group(0);

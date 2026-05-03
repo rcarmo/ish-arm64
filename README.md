@@ -55,7 +55,7 @@ The first tranche centralizes FD-path lookup, stat timestamp fields, host random
 
 ## Current coverage status
 
-Latest staged runtime report: **20 / 20 passing** (`/workspace/tmp/ish-arm64-runtime-coverage-20260502-223437.md`, `TIMEOUT_S=120`, `INSTALL_TIMEOUT_S=300`). Base shell/APK, C, Go, Bun, and Node/npm are green in the Linux-host coverage harness.
+Latest staged runtime report: **20 / 20 passing** (`/workspace/tmp/ish-arm64-runtime-coverage-20260503-141755.md`, `TIMEOUT_S=120`, `INSTALL_TIMEOUT_S=300`). Base shell/APK, C, Go, Bun, and Node/npm are green in the Linux-host coverage harness.
 
 | Area | Status | Notes |
 |---|---:|---|

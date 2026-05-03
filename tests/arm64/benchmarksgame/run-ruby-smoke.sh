@@ -54,9 +54,9 @@ def source_from_page(page):
     return html.unescape(re.sub(r"<[^>]+>", "", pres[0]))
 
 external_markers = ()
-# Keep Thread/fork-heavy variants out of the first Ruby row so this lane stays
-# dependency-free and single-process. Add those as a scheduler/futex lane later.
-skip_markers = external_markers + ("Thread", "fork")
+# Ruby Thread/fork variants are part of the smoke row. A wait4 timeout/EINTR
+# bug found by regexredux-ruby-3 was fixed in iSH, so do not skip them here.
+skip_markers = external_markers
 
 for bench in benches:
     perf = fetch(f"{site}/performance/{bench}.html")

@@ -176,7 +176,7 @@ Latest result:
 report: /workspace/tmp/benchmarksgame-go-smoke-20260503-055307.md
 ```
 
-The Go row intentionally chooses self-contained official Go variants for the first tier. Faster `pidigits` and `regexredux` variants that require cgo/GMP/PCRE are skipped for this row and should become a separate cgo/toolchain stress pass. During manual probing, the cgo `pidigits` variant exposed an intermittent `cc: fatal error: failed to get exit status: Interrupted system call` path while compiling `runtime/cgo`; keep that as a follow-up iSH process/wait/EINTR investigation.
+The Go row intentionally chooses self-contained official Go variants for the first tier. Faster `pidigits` and `regexredux` variants that require cgo/GMP/PCRE are tracked as a separate cgo/toolchain stress pass. During manual probing, the cgo `pidigits` variant exposed `cc: fatal error: failed to get exit status: Interrupted system call` while compiling `runtime/cgo`; this was fixed by treating the internal 1-second `wait4` poll timeout as a timeout, not as a guest `EINTR`. A minimal cgo build and cgo/GMP `pidigits` now compile and run.
 
 ### Second execution row: Python
 
@@ -242,10 +242,10 @@ Latest result:
 
 ```text
 10 / 10 passing
-report: /workspace/tmp/benchmarksgame-ruby-smoke-20260503-133000.md
+report: /workspace/tmp/benchmarksgame-ruby-smoke-20260503-141652.md
 ```
 
-The first Ruby row avoids Thread/fork-heavy variants. Manual probing hit the safety valve on a threaded `regexredux` variant, so the skipped Thread/fork programs should become a targeted scheduler/futex/process stress lane.
+The Ruby row now includes Thread/fork-heavy variants. Manual probing of `regexredux-ruby-3` found a false positive in the poll safety valve while other guest threads were still doing CPU work. iSH now only fires that safety valve when all threads are blocking; the Thread/fork-heavy Ruby row now passes.
 
 ### Proposed harness shape
 
