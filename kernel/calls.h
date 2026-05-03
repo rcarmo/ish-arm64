@@ -192,6 +192,15 @@ dword_t sys_sendfile64(fd_t out_fd, fd_t in_fd, addr_t offset_addr, dword_t coun
 dword_t sys_splice(fd_t in_fd, addr_t in_off_addr, fd_t out_fd, addr_t out_off_addr, dword_t count, dword_t flags);
 dword_t sys_copy_file_range(fd_t in_fd, addr_t in_off, fd_t out_fd, addr_t out_off, dword_t len, uint_t flags);
 
+int_t sys_msgget(int_t key, int_t msgflg);
+int_t sys_msgctl(int_t msqid, int_t cmd, addr_t buf_addr);
+int_t sys_msgsnd(int_t msqid, addr_t msgp, size_t msgsz, int_t msgflg);
+ssize_t sys_msgrcv(int_t msqid, addr_t msgp, size_t msgsz, int64_t msgtyp, int_t msgflg);
+int_t sys_shmget(int_t key, size_t size, int_t shmflg);
+int_t sys_shmctl(int_t shmid, int_t cmd, addr_t buf_addr);
+addr_t sys_shmat(int_t shmid, addr_t shmaddr, int_t shmflg);
+int_t sys_shmdt(addr_t shmaddr);
+
 dword_t sys_statfs(addr_t path_addr, addr_t buf_addr);
 dword_t sys_statfs64(addr_t path_addr, dword_t buf_size, addr_t buf_addr);
 dword_t sys_fstatfs(fd_t f, addr_t buf_addr);

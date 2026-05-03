@@ -73,3 +73,23 @@ tests/arm64/benchmarksgame/run-ruby-smoke.sh
 ```
 
 Latest validated result: 10/10 passing. This row includes Thread/fork variants after fixing a poll safety-valve false positive found by `regexredux-ruby-3`.
+
+## PHP execution row
+
+Run the PHP benchmark row with:
+
+```sh
+tests/arm64/benchmarksgame/run-php-smoke.sh
+```
+
+Latest validated result: 10/10 passing. This row includes official `pcntl`/`shmop`/SysV-message variants after adding ARM64 iSH SysV shared memory and message queue support.
+
+## Lua execution row
+
+Run the Lua benchmark row with:
+
+```sh
+tests/arm64/benchmarksgame/run-lua-smoke.sh
+```
+
+Latest validated result: 10/10 passing. The row runs official Lua sources under `lua5.3` so the official LGMP-backed `pidigits` variant can run; `regexredux` uses Alpine's `lua5.3-rex-pcre2`.

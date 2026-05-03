@@ -281,9 +281,10 @@ The coverage script currently exercises, in order:
 
 1. base shell/apk/tmp file I/O sanity checks;
 2. a C toolchain smoke test (`gcc --version`, compile, execute);
-3. Go (`go version`, `go env`, `go tool compile`, `go run`, `go build`, `go test`);
-4. Bun (`bun --version`, local `file:` dependency install, TypeScript run, test, build);
-5. Node/npm (`node --version`, `node -e`, `npm --version`, `npm run`).
+3. SysV shared-memory/message-queue IPC across `fork()`;
+4. Go (`go version`, `go env`, `go tool compile`, `go run`, `go build`, `go test`);
+5. Bun (`bun --version`, local `file:` dependency install, TypeScript run, test, build);
+6. Node/npm (`node --version`, `node -e`, `npm --version`, `npm run`).
 
 Each run writes a Markdown report named
 `ish-arm64-runtime-coverage-YYYYMMDD-HHMMSS.md` under `REPORT_DIR`. The suite is
@@ -292,9 +293,10 @@ to debug, not as cases to skip.
 
 Current Linux-host status from this pass:
 
-- Latest staged run: **20 / 20 passing** (`/workspace/tmp/ish-arm64-runtime-coverage-20260503-141755.md`, `TIMEOUT_S=120`, `INSTALL_TIMEOUT_S=300`).
-- Non-trivial workload probes are grouped in [docs/ARM64_WORKLOAD_SMOKE_TESTS.md](docs/ARM64_WORKLOAD_SMOKE_TESTS.md): Bun/PiClaw, `rcarmo/go-gte`, and the Benchmarks Game next-test plan.
+- Latest staged run: **21 / 21 passing** (`/workspace/tmp/ish-arm64-runtime-coverage-20260503-162143.md`, `TIMEOUT_S=120`, `INSTALL_TIMEOUT_S=300`).
+- Non-trivial workload probes are grouped in [docs/ARM64_WORKLOAD_SMOKE_TESTS.md](docs/ARM64_WORKLOAD_SMOKE_TESTS.md): Bun/PiClaw, `rcarmo/go-gte`, and the Benchmarks Game rows.
 - C coverage is green: `gcc --version`, compile, and execute all pass.
+- SysV IPC coverage is green: shared memory and message queues work across `fork()`.
 - Go coverage is green: `go version`, `go env`, `go tool compile`, `go run`,
   `go build` + execute, and `go test` all pass.
 - Bun coverage is green: `bun --version`, local `file:` dependency install,

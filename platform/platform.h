@@ -44,6 +44,7 @@ long platform_stat_atime_nsec(const struct stat *st);
 long platform_stat_mtime_nsec(const struct stat *st);
 long platform_stat_ctime_nsec(const struct stat *st);
 int platform_get_random_bytes(char *buf, size_t len);
+int platform_create_shared_memory_fd(size_t size);
 void platform_set_thread_name(const char *name);
 
 #endif

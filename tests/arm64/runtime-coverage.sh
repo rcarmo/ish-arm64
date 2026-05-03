@@ -113,6 +113,64 @@ int main(void) {
     return 0;
 }
 EOF
+    cat >"$dir/sysv_ipc.c" <<'EOF'
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
+#include <sys/shm.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+struct test_msg {
+    long mtype;
+    char mtext[64];
+};
+
+static void die(const char *what) {
+    perror(what);
+    exit(1);
+}
+
+int main(void) {
+    int shmid = shmget(IPC_PRIVATE, 4096, IPC_CREAT | 0600);
+    if (shmid < 0) die("shmget");
+    char *shared = shmat(shmid, NULL, 0);
+    if (shared == (void *) -1) die("shmat");
+    strcpy(shared, "parent");
+
+    int msgid = msgget(IPC_PRIVATE, IPC_CREAT | 0600);
+    if (msgid < 0) die("msgget");
+
+    pid_t pid = fork();
+    if (pid < 0) die("fork");
+    if (pid == 0) {
+        if (strcmp(shared, "parent") != 0) _exit(2);
+        strcpy(shared, "child");
+        struct test_msg msg = {.mtype = 2};
+        strcpy(msg.mtext, "msg-ok");
+        if (msgsnd(msgid, &msg, strlen(msg.mtext) + 1, 0) < 0) _exit(3);
+        shmdt(shared);
+        _exit(0);
+    }
+
+    struct test_msg msg;
+    if (msgrcv(msgid, &msg, sizeof(msg.mtext), 2, 0) < 0) die("msgrcv");
+    int status = 0;
+    if (waitpid(pid, &status, 0) < 0) die("waitpid");
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) return 4;
+    if (strcmp(shared, "child") != 0) return 5;
+    if (strcmp(msg.mtext, "msg-ok") != 0) return 6;
+
+    if (shmdt(shared) < 0) die("shmdt");
+    if (shmctl(shmid, IPC_RMID, NULL) < 0) die("shmctl");
+    if (msgctl(msgid, IPC_RMID, NULL) < 0) die("msgctl");
+    puts("sysv-ipc-ok");
+    return 0;
+}
+EOF
     push_tree "$dir" "$GUEST_WORK/c"
 }
 
@@ -264,6 +322,7 @@ main() {
     prepare_c_fixture
     run_test c "gcc version" "gcc --version | head -1"
     run_test c "compile + run" "cd '$GUEST_WORK/c' && gcc -O0 hello.c -o hello && ./hello | grep -q '^c-runtime-ok '"
+    run_test c "sysv shm/msg IPC" "cd '$GUEST_WORK/c' && gcc -O0 sysv_ipc.c -o sysv_ipc && ./sysv_ipc | grep -qx sysv-ipc-ok"
 
     ensure_tools go
     prepare_go_fixture

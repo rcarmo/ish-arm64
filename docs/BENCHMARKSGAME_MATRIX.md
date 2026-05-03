@@ -1,6 +1,6 @@
 # Benchmarks Game ARM64 iSH success matrix
 
-Generated: 2026-05-03T05:45:35+00:00
+Generated: 2026-05-03T16:20:49+00:00
 
 This is the discovery matrix for the next ARM64 iSH workload gate. It accounts for every official language/runtime label observed on the current Benchmarks Game performance pages and classifies whether each label is runnable with Alpine aarch64 packages, large-but-feasible, external/partial, or blocked.
 
@@ -47,7 +47,7 @@ Legend:
 | graalvmaot | blocked/external | 51 | X | X | X | X | X | X | X | X | X | X | no GraalVM AOT package found |
 | ifx | blocked | 24 | X | X | X | X | X | X | X | X | X | X | Intel Fortran unavailable on Alpine/aarch64 |
 | julia | blocked | 39 | X | X | X | X | X | X | X | X | X | X | no Alpine aarch64 package found |
-| lua | ready | 23 | R | R | R | R | R | R | R | R | R | R | lua5.4 |
+| lua | ready | 23 | R | R | R | R | R | R | R | R | R | R | lua5.3/lua5.4; Benchmarks Game pidigits uses LGMP, which requires Lua < 5.4 |
 | node | ready | 29 | R | R | R | R | R | R | R | R | R | R | nodejs/npm |
 | ocaml | ready-large | 22 | L | L | L | L | L | L | L | L | L | L | ocaml |
 | perl | ready | 32 | R | R | R | R | R | R | R | R | R | R | perl |
@@ -91,6 +91,7 @@ Legend:
 | php84 | community |
 | perl | main |
 | ruby | main |
+| lua5.3 | main |
 | lua5.4 | main |
 | ghc | community |
 | ocaml | community |

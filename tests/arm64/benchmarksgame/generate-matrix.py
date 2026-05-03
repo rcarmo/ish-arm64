@@ -56,7 +56,7 @@ LANGUAGE_STATUS = {
     "php": ("ready", "php84"),
     "perl": ("ready", "perl"),
     "ruby": ("ready", "ruby"),
-    "lua": ("ready", "lua5.4"),
+    "lua": ("ready", "lua5.3/lua5.4; Benchmarks Game pidigits uses LGMP, which requires Lua < 5.4"),
     "ghc": ("ready-large", "ghc"),
     "ocaml": ("ready-large", "ocaml"),
     "sbcl": ("ready-large", "sbcl"),
@@ -213,7 +213,7 @@ def build_report(variants: list[Variant], packages: dict[str, str]) -> str:
 
     lines.append("## Alpine package spot-check")
     lines.append("")
-    package_names = ["gcc", "g++", "gcc-gnat", "go", "rust", "cargo", "python3", "nodejs", "npm", "php84", "perl", "ruby", "lua5.4", "ghc", "ocaml", "sbcl", "racket", "mono", "dotnet-host"]
+    package_names = ["gcc", "g++", "gcc-gnat", "go", "rust", "cargo", "python3", "nodejs", "npm", "php84", "perl", "ruby", "lua5.3", "lua5.4", "ghc", "ocaml", "sbcl", "racket", "mono", "dotnet-host"]
     lines.append("| Package | Repository |")
     lines.append("|---|---|")
     for pkg in package_names:

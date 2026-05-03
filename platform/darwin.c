@@ -3,6 +3,8 @@
 #include <sys/time.h>
 #include <sys/fcntl.h>
 #include <pthread.h>
+#include <stdlib.h>
+#include <unistd.h>
 #include <CommonCrypto/CommonCrypto.h>
 #include <CommonCrypto/CommonRandom.h>
 #include "platform/platform.h"
@@ -82,6 +84,19 @@ long platform_stat_ctime_nsec(const struct stat *st) { return st->st_ctimespec.t
 
 int platform_get_random_bytes(char *buf, size_t len) {
     return CCRandomGenerateBytes(buf, len) == kCCSuccess ? 0 : -1;
+}
+
+int platform_create_shared_memory_fd(size_t size) {
+    char path[] = "/tmp/ish-shm-XXXXXX";
+    int fd = mkstemp(path);
+    if (fd < 0)
+        return -1;
+    unlink(path);
+    if (ftruncate(fd, (off_t) size) < 0) {
+        close(fd);
+        return -1;
+    }
+    return fd;
 }
 
 void platform_set_thread_name(const char *name) {
