@@ -23,3 +23,13 @@ tests/arm64/benchmarksgame/generate-matrix.py
 ```
 
 The output is committed at `docs/BENCHMARKSGAME_MATRIX.md` so changes in the upstream Benchmarks Game site are visible in diffs.
+
+## Go execution row
+
+Run the first actual benchmark row with:
+
+```sh
+tests/arm64/benchmarksgame/run-go-smoke.sh
+```
+
+This fetches official Go source variants from the public Benchmarks Game pages, prefers self-contained variants for the first tier, pushes them into the guest, builds them with guest `go`, and records a Markdown report. Latest validated result: 10/10 passing.
