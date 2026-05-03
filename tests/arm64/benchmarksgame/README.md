@@ -53,3 +53,23 @@ tests/arm64/benchmarksgame/run-node-smoke.sh
 ```
 
 Latest validated result: 10/10 passing. The first row avoids `worker_threads` and external modules so we can add those as separate stress lanes.
+
+## Perl execution row
+
+Run the Perl benchmark row with:
+
+```sh
+tests/arm64/benchmarksgame/run-perl-smoke.sh
+```
+
+Latest validated result: 10/10 passing. `pidigits` is adapted to stdlib `Math::BigInt` because Alpine does not package `Math::BigInt::GMP`.
+
+## Ruby execution row
+
+Run the Ruby benchmark row with:
+
+```sh
+tests/arm64/benchmarksgame/run-ruby-smoke.sh
+```
+
+Latest validated result: 10/10 passing. The first row avoids Thread/fork variants; those are reserved for a scheduler/futex stress lane.

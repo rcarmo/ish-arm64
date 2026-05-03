@@ -20,7 +20,7 @@ A workload belongs here when it exercises at least one of these boundaries:
 | Staged runtime coverage | Passing, 20/20 | Fast regression gate for shell, `apk`, tmp I/O, C, Go, Bun, Node/npm. Catches broad syscall/runtime regressions before heavier probes. | `/workspace/tmp/ish-arm64-runtime-coverage-20260502-223437.md` |
 | Bun + PiClaw bootstrap/server | Passing for install/start/web listen | Exercises modern JS runtime behavior: high `mmap` reservations, JSC GC signaling/timers, recursive package/workspace copies, sockets, HTTP serving, and PiClaw's startup probes. | `/workspace/tmp/piclaw-yolo-run-enotsup-fixed.log` and exposed server logs |
 | `rcarmo/go-gte` | Model conversion, `go test ./...`, and `make run-go` passing; `make go-build` still has upstream missing `cmd/test_gte` | Exercises Go toolchain, Python wheels, safetensors/numpy model conversion, 128 MB binary model I/O, FP16→FP32 AdvSIMD conversion, NEON math kernels, and Go runtime scheduling. | `docs/GO_GTE_PROGRESS.md` |
-| Benchmarks Game suite | Go, Python, and Node.js rows passing 10/10; source/language feasibility mapped | Broad cross-language benchmark corpus covering allocation, recursion, numeric FP, regex/text throughput, big integers, stdout/stdin streams, native compilers, managed runtimes, and package availability. | [BENCHMARKSGAME_MATRIX.md](BENCHMARKSGAME_MATRIX.md), [BENCHMARKSGAME_GO_SMOKE.md](BENCHMARKSGAME_GO_SMOKE.md), [BENCHMARKSGAME_PYTHON_SMOKE.md](BENCHMARKSGAME_PYTHON_SMOKE.md), [BENCHMARKSGAME_NODE_SMOKE.md](BENCHMARKSGAME_NODE_SMOKE.md) |
+| Benchmarks Game suite | Go, Python, Node.js, Perl, and Ruby rows passing 10/10; source/language feasibility mapped | Broad cross-language benchmark corpus covering allocation, recursion, numeric FP, regex/text throughput, big integers, stdout/stdin streams, native compilers, managed runtimes, and package availability. | [BENCHMARKSGAME_MATRIX.md](BENCHMARKSGAME_MATRIX.md), [BENCHMARKSGAME_GO_SMOKE.md](BENCHMARKSGAME_GO_SMOKE.md), [BENCHMARKSGAME_PYTHON_SMOKE.md](BENCHMARKSGAME_PYTHON_SMOKE.md), [BENCHMARKSGAME_NODE_SMOKE.md](BENCHMARKSGAME_NODE_SMOKE.md), [BENCHMARKSGAME_PERL_SMOKE.md](BENCHMARKSGAME_PERL_SMOKE.md), [BENCHMARKSGAME_RUBY_SMOKE.md](BENCHMARKSGAME_RUBY_SMOKE.md) |
 
 ## Staged runtime coverage
 
@@ -106,7 +106,7 @@ Source site:
 - <https://benchmarksgame-team.pages.debian.net/benchmarksgame/>
 - Source repository: <https://salsa.debian.org/benchmarksgame-team/benchmarksgame>
 
-The current site advertises 10 active benchmark families and 26 language/runtime labels through the performance pages. The generated full matrix is in [BENCHMARKSGAME_MATRIX.md](BENCHMARKSGAME_MATRIX.md). Execution rows passing so far: Go ([BENCHMARKSGAME_GO_SMOKE.md](BENCHMARKSGAME_GO_SMOKE.md)), Python ([BENCHMARKSGAME_PYTHON_SMOKE.md](BENCHMARKSGAME_PYTHON_SMOKE.md)), and Node.js ([BENCHMARKSGAME_NODE_SMOKE.md](BENCHMARKSGAME_NODE_SMOKE.md)) across all 10 benchmark families:
+The current site advertises 10 active benchmark families and 26 language/runtime labels through the performance pages. The generated full matrix is in [BENCHMARKSGAME_MATRIX.md](BENCHMARKSGAME_MATRIX.md). Execution rows passing so far: Go ([BENCHMARKSGAME_GO_SMOKE.md](BENCHMARKSGAME_GO_SMOKE.md)), Python ([BENCHMARKSGAME_PYTHON_SMOKE.md](BENCHMARKSGAME_PYTHON_SMOKE.md)), Node.js ([BENCHMARKSGAME_NODE_SMOKE.md](BENCHMARKSGAME_NODE_SMOKE.md)), Perl ([BENCHMARKSGAME_PERL_SMOKE.md](BENCHMARKSGAME_PERL_SMOKE.md)), and Ruby ([BENCHMARKSGAME_RUBY_SMOKE.md](BENCHMARKSGAME_RUBY_SMOKE.md)) across all 10 benchmark families:
 
 | Benchmark | Why it exercises iSH |
 |---|---|
@@ -212,6 +212,40 @@ report: /workspace/tmp/benchmarksgame-node-smoke-20260503-073225.md
 ```
 
 The first Node.js row intentionally avoids `worker_threads` and external modules such as `mpzjs`, keeping this lane single-process and dependency-free. The skipped worker-thread variants should become a separate scheduler/futex stress lane.
+
+### Fourth execution row: Perl
+
+Command:
+
+```sh
+tests/arm64/benchmarksgame/run-perl-smoke.sh
+```
+
+Latest result:
+
+```text
+10 / 10 passing
+report: /workspace/tmp/benchmarksgame-perl-smoke-20260503-080129.md
+```
+
+The first Perl row adapts `pidigits` to use stdlib `Math::BigInt` because Alpine does not package `Math::BigInt::GMP`. The GMP variant remains useful as a separate dependency/native-extension stress lane.
+
+### Fifth execution row: Ruby
+
+Command:
+
+```sh
+tests/arm64/benchmarksgame/run-ruby-smoke.sh
+```
+
+Latest result:
+
+```text
+10 / 10 passing
+report: /workspace/tmp/benchmarksgame-ruby-smoke-20260503-133000.md
+```
+
+The first Ruby row avoids Thread/fork-heavy variants. Manual probing hit the safety valve on a threaded `regexredux` variant, so the skipped Thread/fork programs should become a targeted scheduler/futex/process stress lane.
 
 ### Proposed harness shape
 
