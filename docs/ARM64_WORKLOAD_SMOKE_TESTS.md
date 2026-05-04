@@ -6,6 +6,8 @@ Updated: 2026-05-03
 
 This file is the single index for non-trivial workloads we use to harden the ARM64 iSH Linux-host fakefs. The goal is to move beyond tiny instruction reproducers and run real language runtimes, package managers, compilers, filesystem walkers, network servers, and SIMD-heavy applications that resemble what users actually do inside iSH.
 
+Current issue disposition and syscall coverage appraisal: [ARM64_SMOKE_ISSUES_AND_SYSCALL_COVERAGE.md](ARM64_SMOKE_ISSUES_AND_SYSCALL_COVERAGE.md).
+
 A workload belongs here when it exercises at least one of these boundaries:
 
 - Linux syscall fidelity: `mmap`, `mprotect`, `clone`, futexes, signals, timers, vector I/O, directory walking, sockets, file metadata, and `/proc` probes.
