@@ -90,7 +90,7 @@ Current highlights:
 - staged runtime coverage is **21 / 21 passing**;
 - Bun + PiClaw now install/start far enough to serve the web UI and no longer hit the recursive `copyfile`/`ENOTSUP` bootstrap issue;
 - `rcarmo/go-gte` can now build, convert `gte-small.gtemodel` inside the guest, and complete `make run-go`; this exposed and fixed missing AdvSIMD `FCVTL`/`FCVTL2` support;
-- the next broad workload is the Benchmarks Game corpus, with all official language labels accounted for and tiered by Alpine aarch64 feasibility.
+- the Benchmarks Game core tier now has GCC, G++, Go, Python, Node.js, PHP, Perl, Ruby, and Lua rows passing, with all official language labels accounted for and tiered by Alpine aarch64 feasibility.
 
 Detailed go-gte repro notes remain in [docs/GO_GTE_PROGRESS.md](docs/GO_GTE_PROGRESS.md).
 

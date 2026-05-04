@@ -24,6 +24,26 @@ tests/arm64/benchmarksgame/generate-matrix.py
 
 The output is committed at `docs/BENCHMARKSGAME_MATRIX.md` so changes in the upstream Benchmarks Game site are visible in diffs.
 
+## GCC execution row
+
+Run the C/GCC benchmark row with:
+
+```sh
+tests/arm64/benchmarksgame/run-gcc-smoke.sh
+```
+
+Latest validated result: 10/10 builds and 10/10 runs. This row uses official portable C variants, installing packaged APR/GMP/PCRE dependencies and recording x86-SIMD or musl-thread-stack alternatives explicitly.
+
+## G++ execution row
+
+Run the C++/G++ benchmark row with:
+
+```sh
+tests/arm64/benchmarksgame/run-gpp-smoke.sh
+```
+
+Latest validated result: 10/10 builds and 10/10 runs. This row uses official portable C++ variants, including Boost/TBB/GMP/PCRE dependencies where needed, and records skipped x86-SIMD/source-portability alternatives.
+
 ## Go execution row
 
 Run the first actual benchmark row with:

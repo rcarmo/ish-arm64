@@ -20,7 +20,7 @@ A workload belongs here when it exercises at least one of these boundaries:
 | Staged runtime coverage | Passing, 21/21 | Fast regression gate for shell, `apk`, tmp I/O, C, SysV IPC, Go, Bun, Node/npm. Catches broad syscall/runtime regressions before heavier probes. | `/workspace/tmp/ish-arm64-runtime-coverage-20260503-162143.md` |
 | Bun + PiClaw bootstrap/server | Passing for install/start/web listen | Exercises modern JS runtime behavior: high `mmap` reservations, JSC GC signaling/timers, recursive package/workspace copies, sockets, HTTP serving, and PiClaw's startup probes. | `/workspace/tmp/piclaw-yolo-run-enotsup-fixed.log` and exposed server logs |
 | `rcarmo/go-gte` | Model conversion, `go test ./...`, and `make run-go` passing; `make go-build` still has upstream missing `cmd/test_gte` | Exercises Go toolchain, Python wheels, safetensors/numpy model conversion, 128 MB binary model I/O, FP16→FP32 AdvSIMD conversion, NEON math kernels, and Go runtime scheduling. | `docs/GO_GTE_PROGRESS.md` |
-| Benchmarks Game suite | Go, Python, Node.js, PHP, Perl, Ruby, and Lua rows passing 10/10; source/language feasibility mapped | Broad cross-language benchmark corpus covering allocation, recursion, numeric FP, regex/text throughput, big integers, stdout/stdin streams, native compilers, managed runtimes, IPC, shared memory, and package availability. | [BENCHMARKSGAME_MATRIX.md](BENCHMARKSGAME_MATRIX.md), [BENCHMARKSGAME_GO_SMOKE.md](BENCHMARKSGAME_GO_SMOKE.md), [BENCHMARKSGAME_PYTHON_SMOKE.md](BENCHMARKSGAME_PYTHON_SMOKE.md), [BENCHMARKSGAME_NODE_SMOKE.md](BENCHMARKSGAME_NODE_SMOKE.md), [BENCHMARKSGAME_PHP_SMOKE.md](BENCHMARKSGAME_PHP_SMOKE.md), [BENCHMARKSGAME_PERL_SMOKE.md](BENCHMARKSGAME_PERL_SMOKE.md), [BENCHMARKSGAME_RUBY_SMOKE.md](BENCHMARKSGAME_RUBY_SMOKE.md), [BENCHMARKSGAME_LUA_SMOKE.md](BENCHMARKSGAME_LUA_SMOKE.md) |
+| Benchmarks Game suite | GCC, G++, Go, Python, Node.js, PHP, Perl, Ruby, and Lua rows passing 10/10; source/language feasibility mapped | Broad cross-language benchmark corpus covering allocation, recursion, numeric FP, regex/text throughput, big integers, stdout/stdin streams, native compilers, managed runtimes, native compilers, SIMD portability, IPC, shared memory, and package availability. | [BENCHMARKSGAME_MATRIX.md](BENCHMARKSGAME_MATRIX.md), [BENCHMARKSGAME_GCC_SMOKE.md](BENCHMARKSGAME_GCC_SMOKE.md), [BENCHMARKSGAME_GPP_SMOKE.md](BENCHMARKSGAME_GPP_SMOKE.md), [BENCHMARKSGAME_GO_SMOKE.md](BENCHMARKSGAME_GO_SMOKE.md), [BENCHMARKSGAME_PYTHON_SMOKE.md](BENCHMARKSGAME_PYTHON_SMOKE.md), [BENCHMARKSGAME_NODE_SMOKE.md](BENCHMARKSGAME_NODE_SMOKE.md), [BENCHMARKSGAME_PHP_SMOKE.md](BENCHMARKSGAME_PHP_SMOKE.md), [BENCHMARKSGAME_PERL_SMOKE.md](BENCHMARKSGAME_PERL_SMOKE.md), [BENCHMARKSGAME_RUBY_SMOKE.md](BENCHMARKSGAME_RUBY_SMOKE.md), [BENCHMARKSGAME_LUA_SMOKE.md](BENCHMARKSGAME_LUA_SMOKE.md) |
 
 ## Staged runtime coverage
 
@@ -106,7 +106,7 @@ Source site:
 - <https://benchmarksgame-team.pages.debian.net/benchmarksgame/>
 - Source repository: <https://salsa.debian.org/benchmarksgame-team/benchmarksgame>
 
-The current site advertises 10 active benchmark families and 26 language/runtime labels through the performance pages. The generated full matrix is in [BENCHMARKSGAME_MATRIX.md](BENCHMARKSGAME_MATRIX.md). Execution rows passing so far: Go ([BENCHMARKSGAME_GO_SMOKE.md](BENCHMARKSGAME_GO_SMOKE.md)), Python ([BENCHMARKSGAME_PYTHON_SMOKE.md](BENCHMARKSGAME_PYTHON_SMOKE.md)), Node.js ([BENCHMARKSGAME_NODE_SMOKE.md](BENCHMARKSGAME_NODE_SMOKE.md)), PHP ([BENCHMARKSGAME_PHP_SMOKE.md](BENCHMARKSGAME_PHP_SMOKE.md)), Perl ([BENCHMARKSGAME_PERL_SMOKE.md](BENCHMARKSGAME_PERL_SMOKE.md)), Ruby ([BENCHMARKSGAME_RUBY_SMOKE.md](BENCHMARKSGAME_RUBY_SMOKE.md)), and Lua ([BENCHMARKSGAME_LUA_SMOKE.md](BENCHMARKSGAME_LUA_SMOKE.md)) across all 10 benchmark families:
+The current site advertises 10 active benchmark families and 26 language/runtime labels through the performance pages. The generated full matrix is in [BENCHMARKSGAME_MATRIX.md](BENCHMARKSGAME_MATRIX.md). Execution rows passing so far: GCC ([BENCHMARKSGAME_GCC_SMOKE.md](BENCHMARKSGAME_GCC_SMOKE.md)), G++ ([BENCHMARKSGAME_GPP_SMOKE.md](BENCHMARKSGAME_GPP_SMOKE.md)), Go ([BENCHMARKSGAME_GO_SMOKE.md](BENCHMARKSGAME_GO_SMOKE.md)), Python ([BENCHMARKSGAME_PYTHON_SMOKE.md](BENCHMARKSGAME_PYTHON_SMOKE.md)), Node.js ([BENCHMARKSGAME_NODE_SMOKE.md](BENCHMARKSGAME_NODE_SMOKE.md)), PHP ([BENCHMARKSGAME_PHP_SMOKE.md](BENCHMARKSGAME_PHP_SMOKE.md)), Perl ([BENCHMARKSGAME_PERL_SMOKE.md](BENCHMARKSGAME_PERL_SMOKE.md)), Ruby ([BENCHMARKSGAME_RUBY_SMOKE.md](BENCHMARKSGAME_RUBY_SMOKE.md)), and Lua ([BENCHMARKSGAME_LUA_SMOKE.md](BENCHMARKSGAME_LUA_SMOKE.md)) across all 10 benchmark families:
 
 | Benchmark | Why it exercises iSH |
 |---|---|
@@ -161,7 +161,28 @@ Official labels observed in the site pages and first-pass Alpine 3.23 aarch64 pa
 | `swift` | blocked | No Swift package. |
 
 
-### First execution row: Go
+### Native compiler execution rows: GCC and G++
+
+Commands:
+
+```sh
+tests/arm64/benchmarksgame/run-gcc-smoke.sh
+tests/arm64/benchmarksgame/run-gpp-smoke.sh
+```
+
+Latest results:
+
+```text
+GCC: 10 / 10 build, 10 / 10 run
+report: /workspace/tmp/benchmarksgame-gcc-smoke-20260504-064756.md
+
+G++: 10 / 10 build, 10 / 10 run
+report: /workspace/tmp/benchmarksgame-gpp-smoke-20260504-064900.md
+```
+
+These rows compile official native-code variants inside the guest and then run smoke-sized inputs. Architecture-specific x86 SIMD variants (`immintrin.h`, `x86intrin.h`, SSE/AVX intrinsics) are recorded and skipped rather than patched for ARM64. Two Alpine/musl source-environment limitations are also recorded: some threaded `revcomp`/`fasta` variants use large per-thread stack arrays that overflow musl's small default pthread stacks, and `fannkuchredux-gpp-5` relies on `int64_t` without including `<cstdint>`. The rows keep the next official portable variant instead of changing benchmark source.
+
+### Go execution row
 
 Command:
 
@@ -178,7 +199,7 @@ report: /workspace/tmp/benchmarksgame-go-smoke-20260503-055307.md
 
 The Go row intentionally chooses self-contained official Go variants for the first tier. Faster `pidigits` and `regexredux` variants that require cgo/GMP/PCRE are tracked as a separate cgo/toolchain stress pass. During manual probing, the cgo `pidigits` variant exposed `cc: fatal error: failed to get exit status: Interrupted system call` while compiling `runtime/cgo`; this was fixed by treating the internal 1-second `wait4` poll timeout as a timeout, not as a guest `EINTR`. A minimal cgo build and cgo/GMP `pidigits` now compile and run.
 
-### Second execution row: Python
+### Python execution row
 
 Command:
 
@@ -196,7 +217,7 @@ report: /workspace/tmp/benchmarksgame-python-smoke-20260503-072937.md
 Issue found and fixed: Python `multiprocessing.SemLock` fails with `FileNotFoundError` when `/dev/shm` is absent from the fakefs root. iSH startup now pre-creates `/dev/shm` with mode `1777`, and the Python row passes without creating it in the harness. Many Linux runtimes assume `/dev/shm` exists even when it is just a regular tmp-capable directory.
 
 
-### Third execution row: Node.js
+### Node.js execution row
 
 Command:
 
@@ -213,7 +234,7 @@ report: /workspace/tmp/benchmarksgame-node-smoke-20260503-073225.md
 
 The first Node.js row intentionally avoids `worker_threads` and external modules such as `mpzjs`, keeping this lane single-process and dependency-free. The skipped worker-thread variants should become a separate scheduler/futex stress lane.
 
-### Fourth execution row: Perl
+### Perl execution row
 
 Command:
 
@@ -230,7 +251,7 @@ report: /workspace/tmp/benchmarksgame-perl-smoke-20260503-080129.md
 
 The first Perl row adapts `pidigits` to use stdlib `Math::BigInt` because Alpine does not package `Math::BigInt::GMP`. The GMP variant remains useful as a separate dependency/native-extension stress lane.
 
-### Fifth execution row: Ruby
+### Ruby execution row
 
 Command:
 
@@ -248,7 +269,7 @@ report: /workspace/tmp/benchmarksgame-ruby-smoke-20260503-141652.md
 The Ruby row now includes Thread/fork-heavy variants. Manual probing of `regexredux-ruby-3` found a false positive in the poll safety valve while other guest threads were still doing CPU work. iSH now only fires that safety valve when all threads are blocking; the Thread/fork-heavy Ruby row now passes.
 
 
-### Sixth execution row: PHP
+### PHP execution row
 
 Command:
 
@@ -265,7 +286,7 @@ report: /workspace/tmp/benchmarksgame-php-smoke-20260503-161623.md
 
 Issue found and fixed: the fastest official PHP variants use `shmop` and SysV message queues around `pcntl_fork()`. ARM64 iSH had direct `shmget`/`shmctl`/`shmat`/`shmdt` and `msgget`/`msgctl`/`msgrcv`/`msgsnd` as stubs. iSH now implements enough SysV shared memory and message queue semantics for these workloads: shared mappings survive fork as shared pages, `IPC_STAT` reports segment size for PHP `shmop_open()`, and message receives block until forked workers send their result strings.
 
-### Seventh execution row: Lua
+### Lua execution row
 
 Command:
 
