@@ -113,3 +113,13 @@ tests/arm64/benchmarksgame/run-lua-smoke.sh
 ```
 
 Latest validated result: 10/10 passing. The row runs official Lua sources under `lua5.3` so the official LGMP-backed `pidigits` variant can run; `regexredux` uses Alpine's `lua5.3-rex-pcre2`.
+
+## Java equivalent probe
+
+The current Benchmarks Game pages do not advertise a Java row. To keep Java visible as a runtime lane, run the local equivalent probe with:
+
+```sh
+tests/arm64/benchmarksgame/run-java-equivalent-smoke.sh
+```
+
+Current result: blocked at OpenJDK startup. `java -version` fails before `javac` or the generated Java benchmark equivalents can run, with a HotSpot ARM64 fatal error in `assembler_aarch64.hpp`.

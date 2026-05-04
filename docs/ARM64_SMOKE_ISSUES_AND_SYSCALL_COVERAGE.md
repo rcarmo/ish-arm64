@@ -27,6 +27,7 @@ The current ARM64 Linux-host fakefs is in a good core-runtime state:
 | GCC/G++ Benchmarks Game | Some threaded `revcomp`/`fasta` variants segfault under Alpine/musl. | The source allocates large per-thread VLAs; musl's default pthread stack is much smaller than the Debian/glibc environment used by the benchmark site. | **Accounted for as source/environment limitation**: rows select the next official portable/non-overflowing variant rather than changing benchmark source. |
 | G++ Benchmarks Game | `fannkuchredux-gpp-5` does not compile with Alpine's current GCC without a missing include fix. | Source uses `int64_t` without including `<cstdint>`. | **Accounted for as source portability issue**: row selects the next official variant instead of patching source. |
 | Node.js Benchmarks Game | First Node row skipped `worker_threads` variants. | At the time this was kept as a scheduler/futex stress lane; after the poll-valve fix, worker creation itself works, but some official worker variants produce no output at smoke-sized inputs. | **No active iSH correctness blocker**; keep as a separate stress/validation lane if we want larger inputs or per-variant expected-output checks. |
+| Java/OpenJDK probe | `java -version` fails before Java equivalents can compile/run. | HotSpot aborts early inside AArch64 assembler/runtime setup (`assembler_aarch64.hpp:245` on JDK 17/21; JDK 11 reaches `fieldInfo.hpp:171`). No missing syscall stub is printed; bounded probes show HotSpot then loops while writing its fatal error report. | **Open**: track as a dedicated ARM64 HotSpot correctness lane. Current Java-equivalent Benchmarks Game report is blocked at JVM startup. |
 | External dependency alternatives | Perl GMP backend, Node `mpzjs`, Lua `bn`, and similar variants are not always packaged by Alpine. | Missing language-specific third-party packages, not emulator faults. | **Accounted for**: where a packaged/buildable dependency exists we use it (`php84-gmp`, `lua5.3` LGMP via luarocks, PCRE packages); otherwise variants remain external lanes. |
 
 ## Current syscall coverage snapshot
@@ -68,6 +69,7 @@ These are not blocking the current smoke set, but they frame the next coverage w
 
 | Priority | Gap | Why it matters |
 |---|---|---|
+| High | OpenJDK/HotSpot startup | Java is not on the current Benchmarks Game site, but OpenJDK is a high-value runtime. Current failure occurs before bytecode execution and likely exercises ARM64 code generation, signal/error handling, or memory-layout assumptions not covered by other rows. |
 | High if a workload hits it | SysV semaphores: `semget`, `semctl`, `semop`, `semtimedop` | Completes the SysV IPC family; likely needed by older database/IPC-heavy software. |
 | High if a workload hits it | `signalfd4` | Modern event loops sometimes prefer signalfd over traditional signal handling. |
 | Medium | `memfd_create` real implementation | Currently quiet `ENOSYS`; most runtimes fall back, but some sandbox/JIT/package-manager paths may benefit. |

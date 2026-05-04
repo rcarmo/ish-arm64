@@ -305,6 +305,25 @@ report: /workspace/tmp/benchmarksgame-lua-smoke-20260503-161639.md
 
 The Lua row uses official Lua sources under `lua5.3` because the official GMP-backed `pidigits` variants depend on LGMP, which explicitly supports Lua >= 5.1 and < 5.4. The runner installs/builds LGMP through `luarocks-5.3` and uses Alpine's packaged `lua5.3-rex-pcre2` for official `regexredux`. The first `pidigits-lua-1` alternative is skipped because its `bn` module is not packaged in Alpine.
 
+### Java equivalent probe
+
+Command:
+
+```sh
+tests/arm64/benchmarksgame/run-java-equivalent-smoke.sh
+```
+
+Current result:
+
+```text
+Java startup: FAIL
+Build result: FAIL
+Result: 0 / 10 passing
+report: /workspace/tmp/benchmarksgame-java-equivalent-smoke-20260504-080257.md
+```
+
+The current Benchmarks Game performance pages do not advertise a Java row. The probe therefore generates local Java equivalents for the ten benchmark families and first checks whether OpenJDK can start inside ARM64 iSH. OpenJDK 21 is currently blocked before `javac` or benchmark code can run: `java -version` trips a HotSpot fatal error (`assembler_aarch64.hpp:245`, `guarantee(val < (1ULL << nbits)) failed: Field too big for insn`) and then repeatedly faults while writing the HotSpot error report. OpenJDK 17 shows the same assembler failure, and OpenJDK 11 reaches a different early HotSpot internal error (`fieldInfo.hpp:171`, `ShouldNotReachHere()`). No missing syscall stub is printed during the startup probe, so this is being tracked as an ARM64 instruction/memory-layout/HotSpot-runtime correctness lane rather than a benchmark-source issue.
+
 ### Proposed harness shape
 
 The next repeatable test should be tiered instead of pretending all 26 official labels are equally installable on Alpine aarch64:
